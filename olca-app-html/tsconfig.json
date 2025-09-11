@@ -3,18 +3,27 @@
     "outDir": "./dist",
     "sourceMap": true,
     "noImplicitAny": true,
+    "skipLibCheck": true,
     "module": "commonjs",
-    "target": "es5",
-    "jsx": "react",
+    "strict": false,
+    "target": "es2023",
+    "jsx": "react-jsx",
     "allowJs": true,
     "removeComments": true,
     "moduleResolution": "node",
     "lib": [
-      "es5",
-      "es6",
+      "es2023",
       "dom"
     ],
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/agent/*"],
+      "@/components/*": ["./src/agent/components/*"],
+      "@/hooks/*": ["./src/agent/hooks/*"],
+      "@/lib/*": ["./src/agent/lib/*"],
+      "@/providers/*": ["./src/agent/providers/*"]
+    }
   },
   "include": [
     "src/**/*"

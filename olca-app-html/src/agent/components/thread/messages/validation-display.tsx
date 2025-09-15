@@ -20,18 +20,7 @@ export function ValidationDisplay({ content, toolCallId, toolName }: ValidationD
     next_steps = []
   } = content;
 
-  // Debug logging for validation display (only on mount)
-  React.useEffect(() => {
-    console.group(`✅ Validation Display: ${toolName || 'Unknown'}`);
-    console.log('📋 Tool Call ID:', toolCallId);
-    console.log('🏭 Process:', { id: process_id, name: process_name });
-    console.log('✅ Is Valid:', is_valid);
-    console.log('❌ Errors:', validation_errors);
-    console.log('⚠️ Warnings:', validation_warnings);
-    console.log('📊 Exchange Summary:', exchange_summary);
-    console.log('📋 Next Steps:', next_steps);
-    console.groupEnd();
-  }, []); // Only run once on mount
+  // Debug logging is now handled by the main logger system
 
   const getStatusIcon = () => {
     if (is_valid) {

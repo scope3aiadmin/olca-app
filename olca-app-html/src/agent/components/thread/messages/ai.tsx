@@ -12,7 +12,21 @@ import { Fragment } from "react";
 import { isAgentInboxInterruptSchema } from "@/lib/agent-inbox-interrupt";
 import { ThreadView } from "../agent-inbox";
 import { GenericInterruptView } from "./generic-interrupt";
+import { UserInputRequest } from "./user-input-request";
 import { useArtifact } from "../artifact";
+
+// Function to detect our custom approval interrupt format
+function isCustomApprovalInterrupt(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const obj = value as Record<string, any>;
+  return (
+    "entity_type" in obj &&
+    "entity_summary" in obj &&
+    "action" in obj &&
+    "impact" in obj &&
+    "entity_details" in obj
+  );
+}
 
 function CustomComponent({
   message,
@@ -83,8 +97,17 @@ function Interrupt({
         (isLastMessage || hasNoAIOrToolMessages) && (
           <ThreadView interrupt={interruptValue} />
         )}
+      {isCustomApprovalInterrupt(interruptValue) &&
+        (isLastMessage || hasNoAIOrToolMessages) && (
+          <UserInputRequest 
+            content={interruptValue as any}
+            toolCallId=""
+            toolName=""
+          />
+        )}
       {interruptValue &&
       !isAgentInboxInterruptSchema(interruptValue) &&
+      !isCustomApprovalInterrupt(interruptValue) &&
       (isLastMessage || hasNoAIOrToolMessages) ? (
         <GenericInterruptView interrupt={interruptValue} />
       ) : null}

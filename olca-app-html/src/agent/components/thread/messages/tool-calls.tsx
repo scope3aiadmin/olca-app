@@ -1,10 +1,10 @@
 import { AIMessage, ToolMessage } from "@langchain/langgraph-sdk";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { ApprovalWorkflow } from "./approval-workflow";
 import { UserInputRequest } from "./user-input-request";
 import { ValidationDisplay } from "./validation-display";
+import { useLangGraphLogger } from "../../../hooks/use-langgraph-logger";
 
 function isComplexValue(value: any): boolean {
   return Array.isArray(value) || (typeof value === "object" && value !== null);
@@ -37,21 +37,20 @@ function isApprovalRequired(content: any): boolean {
   
   // Debug logging for approval detection
   if (hasStatusApproval || hasDirectApproval) {
-    console.log('🔍 Approval Detection:', {
-      hasStatusApproval,
-      hasDirectApproval,
-      status: content?.status,
-      hasApprovalRequest: !!content?.approval_request,
-      approvalRequired: content?.approval_required,
-      entityType: content?.entity_type
-    });
+    // This will be handled by the logger in the component
   }
   
   return hasStatusApproval || hasDirectApproval;
 }
 
 function isUserInputRequired(content: any): boolean {
-  return content?.user_input_required === true && content?.question;
+  // Check for new approval format (from backend interrupt)
+  const hasNewApprovalFormat = content?.entity_type && content?.entity_summary && content?.action;
+  
+  // Check for old user input format (fallback)
+  const hasOldUserInputFormat = content?.user_input_required === true && content?.question;
+  
+  return hasNewApprovalFormat || hasOldUserInputFormat;
 }
 
 function isValidationComplete(content: any): boolean {
@@ -67,7 +66,23 @@ export function ToolCalls({
 }: {
   toolCalls: AIMessage["tool_calls"];
 }) {
+  const { logToolCall } = useLangGraphLogger({ enableDebugLogging: false });
+  
   if (!toolCalls || toolCalls.length === 0) return null;
+
+  // Log tool calls for debugging (minimal)
+  useEffect(() => {
+    if (toolCalls && toolCalls.length > 0) {
+      toolCalls.forEach((toolCall, index) => {
+        logToolCall(
+          toolCall.name,
+          toolCall.id || `call_${index}`,
+          toolCall.args as Record<string, any>,
+          'pending'
+        );
+      });
+    }
+  }, [toolCalls, logToolCall]);
 
   return (
     <div className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2">
@@ -122,6 +137,8 @@ export function ToolCalls({
 
 export function ToolResult({ message }: { message: ToolMessage }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [hasLoggedSpecialUI, setHasLoggedSpecialUI] = useState(false);
+  const { logMessage, logSpecialUI } = useLangGraphLogger({ enableDebugLogging: false });
 
   let parsedContent: any;
   let isJsonContent = false;
@@ -171,9 +188,7 @@ export function ToolResult({ message }: { message: ToolMessage }) {
             try {
               parsedContent = JSON.parse(reconstructedJson);
               isJsonContent = isComplexValue(parsedContent);
-              console.log('✅ Successfully reconstructed truncated JSON');
             } catch (e) {
-              console.warn('❌ Failed to reconstruct JSON, trying original:', e);
               // If reconstruction fails, try the original
               try {
                 parsedContent = JSON.parse(jsonString);
@@ -206,7 +221,6 @@ export function ToolResult({ message }: { message: ToolMessage }) {
     }
   } catch (error) {
     // Content is not JSON, use as is
-    console.warn('Failed to parse tool content as JSON:', error);
     parsedContent = message.content;
     isJsonContent = false;
   }
@@ -222,12 +236,201 @@ export function ToolResult({ message }: { message: ToolMessage }) {
     hasValidation = isValidationComplete(parsedContent);
   }
   
+  // Log special UI detection
+  useEffect(() => {
+    if (hasApproval) {
+      logSpecialUI('approval', parsedContent, message.name);
+    } else if (hasUserInput) {
+      logSpecialUI('user_input', parsedContent, message.name);
+    } else if (hasValidation) {
+      logSpecialUI('validation', parsedContent, message.name);
+    }
+  }, [hasApproval, hasUserInput, hasValidation, parsedContent, message.name, logSpecialUI]);
+  
+  // Also check for interrupt data in parsed JSON content (when it's nested in error responses)
+  if (!hasApproval && !hasUserInput && isJsonContent && parsedContent?.details) {
+    const detailsStr = parsedContent.details;
+    
+    // Check for interrupt data in the details field
+    const interruptMatch = detailsStr.match(/Interrupt\(value=(\{.*?)(?:\}\)|$)/s);
+    if (interruptMatch) {
+      try {
+        // Extract the interrupt value and clean it up for JSON parsing
+        let interruptValueStr = interruptMatch[1];
+        
+        // If the string doesn't end with }, it might be truncated, try to find a good stopping point
+        if (!interruptValueStr.endsWith('}')) {
+          let braceCount = 0;
+          let lastGoodIndex = -1;
+          
+          for (let i = 0; i < interruptValueStr.length; i++) {
+            if (interruptValueStr[i] === '{') braceCount++;
+            else if (interruptValueStr[i] === '}') {
+              braceCount--;
+              if (braceCount === 0) {
+                lastGoodIndex = i;
+                break;
+              }
+            }
+          }
+          
+          if (lastGoodIndex > 0) {
+            interruptValueStr = interruptValueStr.substring(0, lastGoodIndex + 1);
+          }
+        }
+        
+        // Replace single quotes with double quotes for JSON parsing
+        interruptValueStr = interruptValueStr.replace(/'/g, '"');
+        
+        // Handle Python-style boolean values
+        interruptValueStr = interruptValueStr.replace(/\bTrue\b/g, 'true');
+        interruptValueStr = interruptValueStr.replace(/\bFalse\b/g, 'false');
+        interruptValueStr = interruptValueStr.replace(/\bNone\b/g, 'null');
+        
+        // Parse the JSON
+        const interruptValue = JSON.parse(interruptValueStr);
+        
+        // Check if this is an approval format interrupt
+        if (interruptValue.entity_type && interruptValue.entity_summary && interruptValue.action) {
+          hasUserInput = true; // Use user input component for approval
+          parsedContent = interruptValue;
+          isJsonContent = true;
+        }
+      } catch (e) {
+        // Fallback: try to extract basic fields even if JSON parsing fails
+        const entityTypeMatch = detailsStr.match(/entity_type['"]?\s*:\s*['"]([^'"]+)['"]/);
+        const entitySummaryMatch = detailsStr.match(/entity_summary['"]?\s*:\s*['"]([^'"]+)['"]/);
+        const actionMatch = detailsStr.match(/action['"]?\s*:\s*['"]([^'"]+)['"]/);
+        const impactMatch = detailsStr.match(/impact['"]?\s*:\s*['"]([^'"]+)['"]/);
+        
+        // Try to extract entity_details
+        const entityDetailsMatch = detailsStr.match(/entity_details['"]?\s*:\s*\{([^}]+)\}/);
+        let entityDetails = {};
+        if (entityDetailsMatch) {
+          try {
+            const detailsStr = entityDetailsMatch[1];
+            const nameMatch = detailsStr.match(/name['"]?\s*:\s*['"]([^'"]+)['"]/);
+            const flowTypeMatch = detailsStr.match(/flow_type['"]?\s*:\s*['"]([^'"]+)['"]/);
+            const flowPropertyMatch = detailsStr.match(/flow_property['"]?\s*:\s*['"]([^'"]+)['"]/);
+            
+            entityDetails = {
+              name: nameMatch ? nameMatch[1] : 'Unknown',
+              flow_type: flowTypeMatch ? flowTypeMatch[1] : 'Unknown',
+              flow_property: flowPropertyMatch ? flowPropertyMatch[1] : 'Unknown'
+            };
+          } catch (e) {
+            // Silent fail for entity_details parsing
+          }
+        }
+        
+        if (entityTypeMatch && entitySummaryMatch && actionMatch) {
+          hasUserInput = true;
+          parsedContent = {
+            entity_type: entityTypeMatch[1],
+            entity_summary: entitySummaryMatch[1],
+            action: actionMatch[1],
+            impact: impactMatch ? impactMatch[1] : "Will create a new entity",
+            entity_details: entityDetails
+          };
+          isJsonContent = true;
+        }
+      }
+    }
+  }
+  
   // Also check raw content for approval patterns (in case JSON parsing failed)
-  if (!hasApproval && typeof message.content === "string") {
+  if (!hasApproval && !hasUserInput && typeof message.content === "string") {
     const rawContent = message.content.toLowerCase();
-    if (rawContent.includes("approval_required") || rawContent.includes("approval required")) {
+    
+    // Check for interrupt data in the content (new LangGraph interrupt format)
+    const interruptMatch = message.content.match(/Interrupt\(value=(\{.*?)(?:\}\)|$)/s);
+    if (interruptMatch) {
+      try {
+        // Extract the interrupt value and clean it up for JSON parsing
+        let interruptValueStr = interruptMatch[1];
+        
+        // If the string doesn't end with }, it might be truncated, try to find a good stopping point
+        if (!interruptValueStr.endsWith('}')) {
+          let braceCount = 0;
+          let lastGoodIndex = -1;
+          
+          for (let i = 0; i < interruptValueStr.length; i++) {
+            if (interruptValueStr[i] === '{') braceCount++;
+            else if (interruptValueStr[i] === '}') {
+              braceCount--;
+              if (braceCount === 0) {
+                lastGoodIndex = i;
+                break;
+              }
+            }
+          }
+          
+          if (lastGoodIndex > 0) {
+            interruptValueStr = interruptValueStr.substring(0, lastGoodIndex + 1);
+          }
+        }
+        
+        // Replace single quotes with double quotes for JSON parsing
+        interruptValueStr = interruptValueStr.replace(/'/g, '"');
+        
+        // Handle Python-style boolean values
+        interruptValueStr = interruptValueStr.replace(/\bTrue\b/g, 'true');
+        interruptValueStr = interruptValueStr.replace(/\bFalse\b/g, 'false');
+        interruptValueStr = interruptValueStr.replace(/\bNone\b/g, 'null');
+        
+        // Parse the JSON
+        const interruptValue = JSON.parse(interruptValueStr);
+        
+        // Check if this is an approval format interrupt
+        if (interruptValue.entity_type && interruptValue.entity_summary && interruptValue.action) {
+          hasUserInput = true; // Use user input component for approval
+          parsedContent = interruptValue;
+          isJsonContent = true;
+        }
+      } catch (e) {
+        // Fallback: try to extract basic fields even if JSON parsing fails
+        const entityTypeMatch = message.content.match(/entity_type['"]?\s*:\s*['"]([^'"]+)['"]/);
+        const entitySummaryMatch = message.content.match(/entity_summary['"]?\s*:\s*['"]([^'"]+)['"]/);
+        const actionMatch = message.content.match(/action['"]?\s*:\s*['"]([^'"]+)['"]/);
+        const impactMatch = message.content.match(/impact['"]?\s*:\s*['"]([^'"]+)['"]/);
+        
+        // Try to extract entity_details
+        const entityDetailsMatch = message.content.match(/entity_details['"]?\s*:\s*\{([^}]+)\}/);
+        let entityDetails = {};
+        if (entityDetailsMatch) {
+          try {
+            const detailsStr = entityDetailsMatch[1];
+            const nameMatch = detailsStr.match(/name['"]?\s*:\s*['"]([^'"]+)['"]/);
+            const flowTypeMatch = detailsStr.match(/flow_type['"]?\s*:\s*['"]([^'"]+)['"]/);
+            const flowPropertyMatch = detailsStr.match(/flow_property['"]?\s*:\s*['"]([^'"]+)['"]/);
+            
+            entityDetails = {
+              name: nameMatch ? nameMatch[1] : 'Unknown',
+              flow_type: flowTypeMatch ? flowTypeMatch[1] : 'Unknown',
+              flow_property: flowPropertyMatch ? flowPropertyMatch[1] : 'Unknown'
+            };
+          } catch (e) {
+            // Silent fail for entity_details parsing
+          }
+        }
+        
+        if (entityTypeMatch && entitySummaryMatch && actionMatch) {
+          hasUserInput = true;
+          parsedContent = {
+            entity_type: entityTypeMatch[1],
+            entity_summary: entitySummaryMatch[1],
+            action: actionMatch[1],
+            impact: impactMatch ? impactMatch[1] : "Will create a new entity",
+            entity_details: entityDetails
+          };
+          isJsonContent = true;
+        }
+      }
+    }
+    
+    // Fallback: check for old approval patterns
+    if (!hasUserInput && (rawContent.includes("approval_required") || rawContent.includes("approval required"))) {
       hasApproval = true;
-      console.log('🔍 Approval detected in raw content for tool:', message.name);
       
       // Try to extract basic info from raw content for approval workflow
       if (!isJsonContent) {
@@ -246,7 +449,7 @@ export function ToolResult({ message }: { message: ToolMessage }) {
             const detailsStr = '{' + entityDetailsMatch[1] + '}';
             entityDetails = JSON.parse(detailsStr.replace(/'/g, '"'));
           } catch (e) {
-            console.warn('Failed to parse entity_details:', e);
+            // Silent fail for entity_details parsing
           }
         }
         
@@ -266,61 +469,40 @@ export function ToolResult({ message }: { message: ToolMessage }) {
     }
   }
   
-  // Debug logging for special UI detection
-  if (hasApproval || hasUserInput || hasValidation) {
-    console.group(`🔧 Tool Result: ${message.name || 'Unknown'}`);
-    console.log('📋 Message:', {
-      id: message.id,
-      name: message.name,
-      tool_call_id: message.tool_call_id,
-      content_type: typeof message.content,
-      is_json: isJsonContent
+  // Log the tool result message for debugging after content parsing
+  useEffect(() => {
+    // Enhanced logging with content analysis
+    const contentAnalysis = {
+      type: typeof message.content,
+      length: typeof message.content === 'string' ? message.content.length : JSON.stringify(message.content).length,
+      isJson: isJsonContent,
+      parsed: parsedContent
+    };
+
+
+  // Minimal logging - only log once when special UI is first detected
+  if ((hasApproval || hasUserInput || hasValidation) && !hasLoggedSpecialUI) {
+    console.log('🔍 Special UI detected:', {
+      toolName: message.name,
+      type: hasApproval ? 'approval' : hasUserInput ? 'user_input' : 'validation'
     });
-    console.log('📄 Raw Content:', message.content);
-    console.log('📄 Parsed Content:', parsedContent);
-    console.log('🎯 Special UI Detection:', {
-      approval_required: hasApproval,
-      user_input_required: hasUserInput,
-      validation_complete: hasValidation
-    });
-    
-    // Additional debugging for approval content structure
-    if (hasApproval) {
-      console.log('🔍 Approval Content Structure:', {
-        hasApprovalRequest: !!parsedContent?.approval_request,
-        approvalRequestKeys: parsedContent?.approval_request ? Object.keys(parsedContent.approval_request) : [],
-        hasEntityDetails: !!parsedContent?.approval_request?.entity_details,
-        entityDetailsKeys: parsedContent?.approval_request?.entity_details ? Object.keys(parsedContent.approval_request.entity_details) : [],
-        entityDetailsContent: parsedContent?.approval_request?.entity_details
-      });
-    }
-    
-    console.groupEnd();
-  }
-  
-  // Additional debug logging for approval detection specifically
-  if (message.name === 'create_process_for_system' || message.name?.includes('process')) {
-    console.group(`🔍 Process Tool Debug: ${message.name}`);
-    console.log('📄 Raw Content:', message.content);
-    console.log('📄 Parsed Content:', parsedContent);
-    console.log('🔍 Approval Detection Result:', hasApproval);
-    console.log('📊 Content Keys:', Object.keys(parsedContent || {}));
-    console.groupEnd();
+    setHasLoggedSpecialUI(true);
   }
 
-  if (hasApproval) {
-    return (
-      <div className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2">
-        <ApprovalWorkflow 
-          content={parsedContent} 
-          toolCallId={getToolCallId(message)}
-          toolName={message.name}
-        />
-      </div>
-    );
-  }
+    logMessage(message, {
+      messageType: 'tool',
+      toolName: message.name,
+      toolCallId: message.tool_call_id,
+      status: 'completed',
+      contentLength: contentAnalysis.length,
+      contentType: contentAnalysis.isJson ? 'json' : 'string',
+      hasSpecialUI: hasApproval || hasUserInput || hasValidation,
+      specialUIType: hasApproval ? 'approval' : hasUserInput ? 'user_input' : hasValidation ? 'validation' : 'none'
+    });
 
-  if (hasUserInput) {
+  }, [message, logMessage, isJsonContent, parsedContent, hasApproval, hasUserInput, hasValidation]);
+
+  if (hasApproval || hasUserInput) {
     return (
       <div className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2">
         <UserInputRequest 

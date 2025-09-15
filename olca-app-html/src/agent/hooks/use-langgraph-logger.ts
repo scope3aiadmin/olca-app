@@ -138,7 +138,7 @@ export function useLangGraphLogger(options: UseLangGraphLoggerOptions = {}) {
   }, [enableDebugLogging, threadId]);
 
   const logSpecialUI = useCallback((
-    uiType: 'approval' | 'user_input' | 'validation',
+    uiType: 'approval' | 'user_input' | 'validation' | 'foundation_approval' | 'rollback_error',
     data: any,
     toolName?: string
   ) => {

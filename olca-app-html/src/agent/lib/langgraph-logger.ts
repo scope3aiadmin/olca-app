@@ -47,7 +47,7 @@ export interface LangGraphMessageMetadata {
   contentLength: number;
   contentType: 'string' | 'json' | 'binary' | 'unknown';
   hasSpecialUI?: boolean;
-  specialUIType?: 'approval' | 'user_input' | 'validation' | 'none';
+  specialUIType?: 'approval' | 'user_input' | 'validation' | 'foundation_approval' | 'rollback_error' | 'none';
 }
 
 export interface LangGraphStreamEvent {
@@ -99,6 +99,18 @@ function detectSpecialUI(content: any, parsedContent?: any): { hasSpecialUI: boo
   const contentToCheck = parsedContent || content;
   
   if (typeof contentToCheck === 'object' && contentToCheck !== null) {
+    // Check for foundation approval requirements
+    if (contentToCheck.approval_request?.entity_type === 'product_system_foundation' ||
+        contentToCheck.entity_type === 'product_system_foundation') {
+      return { hasSpecialUI: true, type: 'foundation_approval' };
+    }
+    
+    // Check for rollback errors
+    if (contentToCheck.status === 'error' && 
+        contentToCheck.details?.includes('Rollback errors:')) {
+      return { hasSpecialUI: true, type: 'rollback_error' };
+    }
+    
     // Check for approval requirements
     if (contentToCheck.status === 'approval_required' && contentToCheck.approval_request) {
       return { hasSpecialUI: true, type: 'approval' };
@@ -121,6 +133,12 @@ function detectSpecialUI(content: any, parsedContent?: any): { hasSpecialUI: boo
   // Check raw content for approval patterns
   if (typeof content === 'string') {
     const rawContent = content.toLowerCase();
+    if (rawContent.includes('product_system_foundation')) {
+      return { hasSpecialUI: true, type: 'foundation_approval' };
+    }
+    if (rawContent.includes('rollback errors:')) {
+      return { hasSpecialUI: true, type: 'rollback_error' };
+    }
     if (rawContent.includes('approval_required') || rawContent.includes('approval required')) {
       return { hasSpecialUI: true, type: 'approval' };
     }

@@ -396,6 +396,7 @@ export function Thread() {
                       hideToolCalls={hideToolCalls ?? false}
                     />
                   )}
+                  
                   {isLoading && !firstTokenReceived && (
                     <AssistantMessageLoading />
                   )}

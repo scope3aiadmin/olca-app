@@ -314,4 +314,4 @@ streamEvents.forEach(event => {
 
 ## Examples
 
-See `examples/langgraph-logger-examples.ts` for comprehensive usage examples covering all features and scenarios.
+See the component implementations for usage examples covering all features and scenarios.

@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { UserInputRequest } from "./user-input-request";
 import { ValidationDisplay } from "./validation-display";
+import { FoundationCreation } from "./foundation-creation";
+import { RollbackErrorDisplay } from "./rollback-error-display";
 import { useLangGraphLogger } from "../../../hooks/use-langgraph-logger";
 
 function isComplexValue(value: any): boolean {
@@ -31,16 +33,22 @@ function truncateValue(value: any, maxLength: number = 500): any {
 }
 
 // Detection functions for special UI requirements
+function isFoundationApprovalRequired(content: any): boolean {
+  return content?.approval_request?.entity_type === "product_system_foundation" ||
+         content?.entity_type === "product_system_foundation";
+}
+
 function isApprovalRequired(content: any): boolean {
   const hasStatusApproval = content?.status === "approval_required" && content?.approval_request;
   const hasDirectApproval = content?.approval_required === true && content?.entity_type;
+  const hasFoundationApproval = isFoundationApprovalRequired(content);
   
   // Debug logging for approval detection
-  if (hasStatusApproval || hasDirectApproval) {
+  if (hasStatusApproval || hasDirectApproval || hasFoundationApproval) {
     // This will be handled by the logger in the component
   }
   
-  return hasStatusApproval || hasDirectApproval;
+  return hasStatusApproval || hasDirectApproval || hasFoundationApproval;
 }
 
 function isUserInputRequired(content: any): boolean {
@@ -55,6 +63,34 @@ function isUserInputRequired(content: any): boolean {
 
 function isValidationComplete(content: any): boolean {
   return content?.status === "validation_complete" && content?.process_id;
+}
+
+function isRollbackError(content: any): boolean {
+  return content?.status === "error" && 
+         content?.details?.includes("Rollback errors:");
+}
+
+function parseRollbackErrors(content: any): {
+  mainError: string;
+  rollbackErrors: string[];
+  suggestion: string;
+} {
+  const mainError = content?.message || "Operation failed";
+  const suggestion = content?.suggestion || "";
+  
+  let rollbackErrors: string[] = [];
+  if (content?.details) {
+    const detailsStr = content.details;
+    const rollbackMatch = detailsStr.match(/Rollback errors:\s*(.+)/s);
+    if (rollbackMatch) {
+      rollbackErrors = rollbackMatch[1]
+        .split(/Failed to delete/)
+        .filter((error: string) => error.trim())
+        .map((error: string) => `Failed to delete${error.trim()}`);
+    }
+  }
+  
+  return { mainError, rollbackErrors, suggestion };
 }
 
 function getToolCallId(message: ToolMessage): string | undefined {
@@ -229,23 +265,31 @@ export function ToolResult({ message }: { message: ToolMessage }) {
   let hasApproval = false;
   let hasUserInput = false;
   let hasValidation = false;
+  let hasFoundationApproval = false;
+  let hasRollbackError = false;
   
   if (isJsonContent) {
     hasApproval = isApprovalRequired(parsedContent);
     hasUserInput = isUserInputRequired(parsedContent);
     hasValidation = isValidationComplete(parsedContent);
+    hasFoundationApproval = isFoundationApprovalRequired(parsedContent);
+    hasRollbackError = isRollbackError(parsedContent);
   }
   
   // Log special UI detection
   useEffect(() => {
-    if (hasApproval) {
+    if (hasFoundationApproval) {
+      logSpecialUI('foundation_approval', parsedContent, message.name);
+    } else if (hasApproval) {
       logSpecialUI('approval', parsedContent, message.name);
     } else if (hasUserInput) {
       logSpecialUI('user_input', parsedContent, message.name);
     } else if (hasValidation) {
       logSpecialUI('validation', parsedContent, message.name);
+    } else if (hasRollbackError) {
+      logSpecialUI('rollback_error', parsedContent, message.name);
     }
-  }, [hasApproval, hasUserInput, hasValidation, parsedContent, message.name, logSpecialUI]);
+  }, [hasFoundationApproval, hasApproval, hasUserInput, hasValidation, hasRollbackError, parsedContent, message.name, logSpecialUI]);
   
   // Also check for interrupt data in parsed JSON content (when it's nested in error responses)
   if (!hasApproval && !hasUserInput && isJsonContent && parsedContent?.details) {
@@ -481,10 +525,13 @@ export function ToolResult({ message }: { message: ToolMessage }) {
 
 
   // Minimal logging - only log once when special UI is first detected
-  if ((hasApproval || hasUserInput || hasValidation) && !hasLoggedSpecialUI) {
+  if ((hasApproval || hasUserInput || hasValidation || hasFoundationApproval || hasRollbackError) && !hasLoggedSpecialUI) {
     console.log('🔍 Special UI detected:', {
       toolName: message.name,
-      type: hasApproval ? 'approval' : hasUserInput ? 'user_input' : 'validation'
+      type: hasFoundationApproval ? 'foundation_approval' : 
+            hasRollbackError ? 'rollback_error' :
+            hasApproval ? 'approval' : 
+            hasUserInput ? 'user_input' : 'validation'
     });
     setHasLoggedSpecialUI(true);
   }
@@ -496,11 +543,39 @@ export function ToolResult({ message }: { message: ToolMessage }) {
       status: 'completed',
       contentLength: contentAnalysis.length,
       contentType: contentAnalysis.isJson ? 'json' : 'string',
-      hasSpecialUI: hasApproval || hasUserInput || hasValidation,
-      specialUIType: hasApproval ? 'approval' : hasUserInput ? 'user_input' : hasValidation ? 'validation' : 'none'
+      hasSpecialUI: hasApproval || hasUserInput || hasValidation || hasFoundationApproval || hasRollbackError,
+      specialUIType: hasFoundationApproval ? 'foundation_approval' :
+                    hasRollbackError ? 'rollback_error' :
+                    hasApproval ? 'approval' : 
+                    hasUserInput ? 'user_input' : 
+                    hasValidation ? 'validation' : 'none'
     });
 
-  }, [message, logMessage, isJsonContent, parsedContent, hasApproval, hasUserInput, hasValidation]);
+  }, [message, logMessage, isJsonContent, parsedContent, hasApproval, hasUserInput, hasValidation, hasFoundationApproval, hasRollbackError]);
+
+  // Handle foundation approval requests
+  if (hasFoundationApproval) {
+    return (
+      <div className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2">
+        <FoundationCreation 
+          content={parsedContent} 
+          toolCallId={getToolCallId(message)}
+          toolName={message.name}
+        />
+      </div>
+    );
+  }
+
+  // Handle rollback errors
+  if (hasRollbackError) {
+    return (
+      <div className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2">
+        <RollbackErrorDisplay 
+          content={parsedContent}
+        />
+      </div>
+    );
+  }
 
   if (hasApproval || hasUserInput) {
     return (

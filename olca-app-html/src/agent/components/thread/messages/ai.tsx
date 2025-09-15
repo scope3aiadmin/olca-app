@@ -13,6 +13,7 @@ import { isAgentInboxInterruptSchema } from "@/lib/agent-inbox-interrupt";
 import { ThreadView } from "../agent-inbox";
 import { GenericInterruptView } from "./generic-interrupt";
 import { UserInputRequest } from "./user-input-request";
+import { FoundationCreation } from "./foundation-creation";
 import { useArtifact } from "../artifact";
 
 // Function to detect our custom approval interrupt format
@@ -21,6 +22,20 @@ function isCustomApprovalInterrupt(value: unknown): boolean {
   const obj = value as Record<string, any>;
   return (
     "entity_type" in obj &&
+    "entity_summary" in obj &&
+    "action" in obj &&
+    "impact" in obj &&
+    "entity_details" in obj
+  );
+}
+
+// Function to detect foundation approval interrupt format
+function isFoundationApprovalInterrupt(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const obj = value as Record<string, any>;
+  return (
+    "entity_type" in obj &&
+    obj.entity_type === "product_system_foundation" &&
     "entity_summary" in obj &&
     "action" in obj &&
     "impact" in obj &&
@@ -97,7 +112,16 @@ function Interrupt({
         (isLastMessage || hasNoAIOrToolMessages) && (
           <ThreadView interrupt={interruptValue} />
         )}
+      {isFoundationApprovalInterrupt(interruptValue) &&
+        (isLastMessage || hasNoAIOrToolMessages) && (
+          <FoundationCreation 
+            content={interruptValue as any}
+            toolCallId=""
+            toolName=""
+          />
+        )}
       {isCustomApprovalInterrupt(interruptValue) &&
+        !isFoundationApprovalInterrupt(interruptValue) &&
         (isLastMessage || hasNoAIOrToolMessages) && (
           <UserInputRequest 
             content={interruptValue as any}
@@ -108,6 +132,7 @@ function Interrupt({
       {interruptValue &&
       !isAgentInboxInterruptSchema(interruptValue) &&
       !isCustomApprovalInterrupt(interruptValue) &&
+      !isFoundationApprovalInterrupt(interruptValue) &&
       (isLastMessage || hasNoAIOrToolMessages) ? (
         <GenericInterruptView interrupt={interruptValue} />
       ) : null}

@@ -106,7 +106,6 @@ export function AssistantMessage({
   const content = message?.content ?? [];
   const contentString = getContentString(content);
 
-  console.log("hideToolCalls ai.tsx", hideToolCalls);
   const thread = useStreamContext();
   const isLastMessage =
     thread.messages[thread.messages.length - 1].id === message?.id;

@@ -93,7 +93,6 @@ export function Thread() {
     "hideToolCalls",
     parseAsBoolean.withDefault(false),
   );
-  console.log("hideToolCalls index.tsx", hideToolCalls);
   const [input, setInput] = useState("");
   const {
     contentBlocks,
@@ -161,8 +160,51 @@ export function Thread() {
       setFirstTokenReceived(true);
     }
 
+    // Debug logging for message changes only
+    if (messages.length !== prevMessageLength.current) {
+      console.group('💬 Thread Messages Updated');
+      console.log('📊 Total messages:', messages.length);
+      console.log('🔄 Is loading:', isLoading);
+      console.log('📋 Messages:', messages.map((msg, idx) => {
+        const messageInfo: any = {
+          index: idx,
+          type: msg.type,
+          id: msg.id,
+          hasToolCalls: 'tool_calls' in msg && msg.tool_calls?.length > 0,
+          toolCallsCount: 'tool_calls' in msg ? msg.tool_calls?.length || 0 : 0,
+        };
+
+        // Add content details based on message type
+        if (msg.type === 'human') {
+          messageInfo.content = Array.isArray(msg.content) 
+            ? msg.content.map(c => ({ type: c.type, text: c.type === 'text' ? c.text?.substring(0, 100) + '...' : 'non-text' }))
+            : String(msg.content).substring(0, 100) + '...';
+        } else if (msg.type === 'ai') {
+          messageInfo.content = Array.isArray(msg.content) 
+            ? msg.content.map(c => ({ type: c.type, text: c.type === 'text' ? c.text?.substring(0, 100) + '...' : 'non-text' }))
+            : String(msg.content).substring(0, 100) + '...';
+          if ('tool_calls' in msg && msg.tool_calls) {
+            messageInfo.toolCalls = msg.tool_calls.map(tc => ({
+              name: tc.name,
+              id: tc.id,
+              args: tc.args
+            }));
+          }
+        } else if (msg.type === 'tool') {
+          messageInfo.toolName = msg.name;
+          messageInfo.toolCallId = msg.tool_call_id;
+          messageInfo.content = typeof msg.content === 'string' 
+            ? msg.content.substring(0, 200) + '...' 
+            : msg.content;
+        }
+
+        return messageInfo;
+      }));
+      console.groupEnd();
+    }
+
     prevMessageLength.current = messages.length;
-  }, [messages]);
+  }, [messages, isLoading]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -183,6 +225,37 @@ export function Thread() {
 
     const context =
       Object.keys(artifactContext).length > 0 ? artifactContext : undefined;
+
+    // Debug logging for message submission
+    console.group('📤 Submitting New Message');
+    console.log('💬 Human Message:', newHumanMessage);
+    console.log('🔧 Tool Messages:', toolMessages);
+    console.log('📊 Context:', context);
+    console.log('📋 Total Messages Being Sent:', [...toolMessages, newHumanMessage]);
+    
+    // Log the complete payload being sent to LangGraph endpoint
+    const payload = {
+      messages: [...toolMessages, newHumanMessage],
+      context
+    };
+    const streamOptions = {
+      streamMode: ["values"],
+      streamSubgraphs: true,
+      streamResumable: true,
+      optimisticValues: (prev: any) => ({
+        ...prev,
+        context,
+        messages: [
+          ...(prev.messages ?? []),
+          ...toolMessages,
+          newHumanMessage,
+        ],
+      }),
+    };
+    
+    console.log('🚀 LangGraph Payload:', payload);
+    console.log('⚙️ Stream Options:', streamOptions);
+    console.groupEnd();
 
     stream.submit(
       { messages: [...toolMessages, newHumanMessage], context },
@@ -212,6 +285,19 @@ export function Thread() {
     // Do this so the loading state is correct
     prevMessageLength.current = prevMessageLength.current - 1;
     setFirstTokenReceived(false);
+    
+    // Debug logging for regeneration
+    console.group('🔄 Regenerating Message');
+    console.log('📍 Parent Checkpoint:', parentCheckpoint);
+    const regenerateOptions = {
+      checkpoint: parentCheckpoint,
+      streamMode: ["values"],
+      streamSubgraphs: true,
+      streamResumable: true,
+    };
+    console.log('⚙️ Regenerate Options:', regenerateOptions);
+    console.groupEnd();
+    
     stream.submit(undefined, {
       checkpoint: parentCheckpoint,
       streamMode: ["values"],

@@ -12,7 +12,6 @@ import { Fragment } from "react";
 import { isAgentInboxInterruptSchema } from "@/lib/agent-inbox-interrupt";
 import { ThreadView } from "../agent-inbox";
 import { GenericInterruptView } from "./generic-interrupt";
-import { UserInputRequest } from "./user-input-request";
 import { FoundationCreation } from "./foundation-creation";
 import { useArtifact } from "../artifact";
 
@@ -115,15 +114,6 @@ function Interrupt({
       {isFoundationApprovalInterrupt(interruptValue) &&
         (isLastMessage || hasNoAIOrToolMessages) && (
           <FoundationCreation 
-            content={interruptValue as any}
-            toolCallId=""
-            toolName=""
-          />
-        )}
-      {isCustomApprovalInterrupt(interruptValue) &&
-        !isFoundationApprovalInterrupt(interruptValue) &&
-        (isLastMessage || hasNoAIOrToolMessages) && (
-          <UserInputRequest 
             content={interruptValue as any}
             toolCallId=""
             toolName=""

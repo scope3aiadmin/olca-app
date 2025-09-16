@@ -197,8 +197,9 @@ export function Thread() {
         optimisticValues: (prev) => ({
           ...prev,
           context,
+          created_processes: prev?.created_processes ?? [], // Ensure created_processes is always an array
           messages: [
-            ...(prev.messages ?? []),
+            ...(prev?.messages ?? []),
             ...toolMessages,
             newHumanMessage,
           ],

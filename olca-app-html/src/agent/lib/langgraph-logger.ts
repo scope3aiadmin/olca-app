@@ -47,7 +47,7 @@ export interface LangGraphMessageMetadata {
   contentLength: number;
   contentType: 'string' | 'json' | 'binary' | 'unknown';
   hasSpecialUI?: boolean;
-  specialUIType?: 'approval' | 'user_input' | 'validation' | 'foundation_approval' | 'rollback_error' | 'none';
+  specialUIType?: 'approval' | 'validation' | 'foundation_approval' | 'rollback_error' | 'exchange_search' | 'exchange_addition' | 'exchange_addition_error' | 'none';
 }
 
 export interface LangGraphStreamEvent {
@@ -119,9 +119,19 @@ function detectSpecialUI(content: any, parsedContent?: any): { hasSpecialUI: boo
       return { hasSpecialUI: true, type: 'approval' };
     }
     
-    // Check for user input requirements
-    if (contentToCheck.user_input_required === true && contentToCheck.question) {
-      return { hasSpecialUI: true, type: 'user_input' };
+    // Check for exchange search results
+    if (contentToCheck.status === 'success' && 
+        contentToCheck.search_results && 
+        typeof contentToCheck.search_results === 'object' &&
+        Object.keys(contentToCheck.search_results).length > 0) {
+      return { hasSpecialUI: true, type: 'exchange_search' };
+    }
+    
+    // Check for exchange addition results
+    if (contentToCheck.status === 'success' && 
+        contentToCheck.exchanges_added !== undefined &&
+        contentToCheck.search_metadata) {
+      return { hasSpecialUI: true, type: 'exchange_addition' };
     }
     
     // Check for validation completion

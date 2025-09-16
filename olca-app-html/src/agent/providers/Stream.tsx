@@ -25,7 +25,11 @@ import { getApiKey } from "@/lib/api-key";
 import { useThreads } from "./Thread";
 import { toast } from "sonner";
 
-export type StateType = { messages: Message[]; ui?: UIMessage[] };
+export type StateType = { 
+  messages: Message[]; 
+  ui?: UIMessage[];
+  created_processes: any[]; // Required field to match backend state schema
+};
 
 const useTypedStream = useStream<
   StateType,
@@ -34,6 +38,7 @@ const useTypedStream = useStream<
       messages?: Message[] | Message | string;
       ui?: (UIMessage | RemoveUIMessage)[] | UIMessage | RemoveUIMessage;
       context?: Record<string, unknown>;
+      created_processes?: any[]; // Optional for updates
     };
     CustomEventType: UIMessage | RemoveUIMessage;
   }
@@ -89,7 +94,11 @@ const StreamSession = ({
       if (isUIMessage(event) || isRemoveUIMessage(event)) {
         options.mutate((prev) => {
           const ui = uiMessageReducer(prev.ui ?? [], event);
-          return { ...prev, ui };
+          return { 
+            ...prev, 
+            ui,
+            created_processes: prev?.created_processes ?? []
+          };
         });
       }
     },
@@ -100,6 +109,7 @@ const StreamSession = ({
       sleep().then(() => getThreads().then(setThreads).catch(console.error));
     },
   });
+
 
   useEffect(() => {
     checkGraphStatus(apiUrl, apiKey).then((ok) => {

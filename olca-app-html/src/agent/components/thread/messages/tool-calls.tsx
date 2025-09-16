@@ -2,10 +2,12 @@ import { AIMessage, ToolMessage } from "@langchain/langgraph-sdk";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { UserInputRequest } from "./user-input-request";
 import { ValidationDisplay } from "./validation-display";
 import { FoundationCreation } from "./foundation-creation";
 import { RollbackErrorDisplay } from "./rollback-error-display";
+import { ExchangeSearchResults } from "./exchange-search-results";
+import { ExchangeAdditionResults } from "./exchange-addition-results";
+import { ExchangeAdditionError } from "./exchange-addition-error";
 import { useLangGraphLogger } from "../../../hooks/use-langgraph-logger";
 
 function isComplexValue(value: any): boolean {
@@ -51,15 +53,6 @@ function isApprovalRequired(content: any): boolean {
   return hasStatusApproval || hasDirectApproval || hasFoundationApproval;
 }
 
-function isUserInputRequired(content: any): boolean {
-  // Check for new approval format (from backend interrupt)
-  const hasNewApprovalFormat = content?.entity_type && content?.entity_summary && content?.action;
-  
-  // Check for old user input format (fallback)
-  const hasOldUserInputFormat = content?.user_input_required === true && content?.question;
-  
-  return hasNewApprovalFormat || hasOldUserInputFormat;
-}
 
 function isValidationComplete(content: any): boolean {
   return content?.status === "validation_complete" && content?.process_id;
@@ -68,6 +61,27 @@ function isValidationComplete(content: any): boolean {
 function isRollbackError(content: any): boolean {
   return content?.status === "error" && 
          content?.details?.includes("Rollback errors:");
+}
+
+function isExchangeSearchResults(content: any): boolean {
+  return content?.status === "success" && 
+         content?.search_results && 
+         typeof content.search_results === "object" &&
+         Object.keys(content.search_results).length > 0;
+}
+
+function isExchangeAdditionResults(content: any): boolean {
+  return content?.status === "success" && 
+         content?.exchanges_added !== undefined &&
+         content?.search_metadata;
+}
+
+function isExchangeAdditionError(content: any): boolean {
+  return content?.status === "error" && 
+         (content?.validation_errors || 
+          content?.details?.includes("Failed to add selected exchanges") ||
+          content?.message?.includes("Exchange validation failed") ||
+          content?.message?.includes("Failed to add selected exchanges"));
 }
 
 function parseRollbackErrors(content: any): {
@@ -263,17 +277,21 @@ export function ToolResult({ message }: { message: ToolMessage }) {
 
   // Check for special UI requirements - also check raw content for approval patterns
   let hasApproval = false;
-  let hasUserInput = false;
   let hasValidation = false;
   let hasFoundationApproval = false;
   let hasRollbackError = false;
+  let hasExchangeSearch = false;
+  let hasExchangeAddition = false;
+  let hasExchangeAdditionError = false;
   
   if (isJsonContent) {
     hasApproval = isApprovalRequired(parsedContent);
-    hasUserInput = isUserInputRequired(parsedContent);
     hasValidation = isValidationComplete(parsedContent);
     hasFoundationApproval = isFoundationApprovalRequired(parsedContent);
     hasRollbackError = isRollbackError(parsedContent);
+    hasExchangeSearch = isExchangeSearchResults(parsedContent);
+    hasExchangeAddition = isExchangeAdditionResults(parsedContent);
+    hasExchangeAdditionError = isExchangeAdditionError(parsedContent);
   }
   
   // Log special UI detection
@@ -282,17 +300,21 @@ export function ToolResult({ message }: { message: ToolMessage }) {
       logSpecialUI('foundation_approval', parsedContent, message.name);
     } else if (hasApproval) {
       logSpecialUI('approval', parsedContent, message.name);
-    } else if (hasUserInput) {
-      logSpecialUI('user_input', parsedContent, message.name);
     } else if (hasValidation) {
       logSpecialUI('validation', parsedContent, message.name);
     } else if (hasRollbackError) {
       logSpecialUI('rollback_error', parsedContent, message.name);
+    } else if (hasExchangeSearch) {
+      logSpecialUI('exchange_search', parsedContent, message.name);
+    } else if (hasExchangeAddition) {
+      logSpecialUI('exchange_addition', parsedContent, message.name);
+    } else if (hasExchangeAdditionError) {
+      logSpecialUI('exchange_addition_error', parsedContent, message.name);
     }
-  }, [hasFoundationApproval, hasApproval, hasUserInput, hasValidation, hasRollbackError, parsedContent, message.name, logSpecialUI]);
+  }, [hasFoundationApproval, hasApproval, hasValidation, hasRollbackError, hasExchangeSearch, hasExchangeAddition, hasExchangeAdditionError, parsedContent, message.name, logSpecialUI]);
   
   // Also check for interrupt data in parsed JSON content (when it's nested in error responses)
-  if (!hasApproval && !hasUserInput && isJsonContent && parsedContent?.details) {
+  if (!hasApproval && isJsonContent && parsedContent?.details) {
     const detailsStr = parsedContent.details;
     
     // Check for interrupt data in the details field
@@ -336,7 +358,7 @@ export function ToolResult({ message }: { message: ToolMessage }) {
         
         // Check if this is an approval format interrupt
         if (interruptValue.entity_type && interruptValue.entity_summary && interruptValue.action) {
-          hasUserInput = true; // Use user input component for approval
+          hasApproval = true; // Use approval component
           parsedContent = interruptValue;
           isJsonContent = true;
         }
@@ -368,7 +390,7 @@ export function ToolResult({ message }: { message: ToolMessage }) {
         }
         
         if (entityTypeMatch && entitySummaryMatch && actionMatch) {
-          hasUserInput = true;
+          hasApproval = true;
           parsedContent = {
             entity_type: entityTypeMatch[1],
             entity_summary: entitySummaryMatch[1],
@@ -383,7 +405,7 @@ export function ToolResult({ message }: { message: ToolMessage }) {
   }
   
   // Also check raw content for approval patterns (in case JSON parsing failed)
-  if (!hasApproval && !hasUserInput && typeof message.content === "string") {
+  if (!hasApproval && typeof message.content === "string") {
     const rawContent = message.content.toLowerCase();
     
     // Check for interrupt data in the content (new LangGraph interrupt format)
@@ -427,7 +449,7 @@ export function ToolResult({ message }: { message: ToolMessage }) {
         
         // Check if this is an approval format interrupt
         if (interruptValue.entity_type && interruptValue.entity_summary && interruptValue.action) {
-          hasUserInput = true; // Use user input component for approval
+          hasApproval = true; // Use approval component
           parsedContent = interruptValue;
           isJsonContent = true;
         }
@@ -459,7 +481,7 @@ export function ToolResult({ message }: { message: ToolMessage }) {
         }
         
         if (entityTypeMatch && entitySummaryMatch && actionMatch) {
-          hasUserInput = true;
+          hasApproval = true;
           parsedContent = {
             entity_type: entityTypeMatch[1],
             entity_summary: entitySummaryMatch[1],
@@ -473,7 +495,7 @@ export function ToolResult({ message }: { message: ToolMessage }) {
     }
     
     // Fallback: check for old approval patterns
-    if (!hasUserInput && (rawContent.includes("approval_required") || rawContent.includes("approval required"))) {
+    if (rawContent.includes("approval_required") || rawContent.includes("approval required")) {
       hasApproval = true;
       
       // Try to extract basic info from raw content for approval workflow
@@ -525,13 +547,16 @@ export function ToolResult({ message }: { message: ToolMessage }) {
 
 
   // Minimal logging - only log once when special UI is first detected
-  if ((hasApproval || hasUserInput || hasValidation || hasFoundationApproval || hasRollbackError) && !hasLoggedSpecialUI) {
+  if ((hasApproval || hasValidation || hasFoundationApproval || hasRollbackError || hasExchangeSearch || hasExchangeAddition || hasExchangeAdditionError) && !hasLoggedSpecialUI) {
     console.log('🔍 Special UI detected:', {
       toolName: message.name,
       type: hasFoundationApproval ? 'foundation_approval' : 
             hasRollbackError ? 'rollback_error' :
+            hasExchangeSearch ? 'exchange_search' :
+            hasExchangeAddition ? 'exchange_addition' :
+            hasExchangeAdditionError ? 'exchange_addition_error' :
             hasApproval ? 'approval' : 
-            hasUserInput ? 'user_input' : 'validation'
+            'validation'
     });
     setHasLoggedSpecialUI(true);
   }
@@ -543,15 +568,17 @@ export function ToolResult({ message }: { message: ToolMessage }) {
       status: 'completed',
       contentLength: contentAnalysis.length,
       contentType: contentAnalysis.isJson ? 'json' : 'string',
-      hasSpecialUI: hasApproval || hasUserInput || hasValidation || hasFoundationApproval || hasRollbackError,
-      specialUIType: hasFoundationApproval ? 'foundation_approval' :
+      hasSpecialUI: hasApproval || hasValidation || hasFoundationApproval || hasRollbackError || hasExchangeSearch || hasExchangeAddition || hasExchangeAdditionError,
+      specialUIType: (hasFoundationApproval ? 'foundation_approval' :
                     hasRollbackError ? 'rollback_error' :
+                    hasExchangeSearch ? 'exchange_search' :
+                    hasExchangeAddition ? 'exchange_addition' :
+                    hasExchangeAdditionError ? 'exchange_addition_error' :
                     hasApproval ? 'approval' : 
-                    hasUserInput ? 'user_input' : 
-                    hasValidation ? 'validation' : 'none'
+                    hasValidation ? 'validation' : 'none') as 'approval' | 'validation' | 'foundation_approval' | 'rollback_error' | 'exchange_search' | 'exchange_addition' | 'exchange_addition_error' | 'none'
     });
 
-  }, [message, logMessage, isJsonContent, parsedContent, hasApproval, hasUserInput, hasValidation, hasFoundationApproval, hasRollbackError]);
+  }, [message, logMessage, isJsonContent, parsedContent, hasApproval, hasValidation, hasFoundationApproval, hasRollbackError, hasExchangeSearch, hasExchangeAddition, hasExchangeAdditionError]);
 
   // Handle foundation approval requests
   if (hasFoundationApproval) {
@@ -577,10 +604,11 @@ export function ToolResult({ message }: { message: ToolMessage }) {
     );
   }
 
-  if (hasApproval || hasUserInput) {
+  // Handle exchange search results
+  if (hasExchangeSearch) {
     return (
       <div className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2">
-        <UserInputRequest 
+        <ExchangeSearchResults 
           content={parsedContent} 
           toolCallId={getToolCallId(message)}
           toolName={message.name}
@@ -588,6 +616,33 @@ export function ToolResult({ message }: { message: ToolMessage }) {
       </div>
     );
   }
+
+  // Handle exchange addition results
+  if (hasExchangeAddition) {
+    return (
+      <div className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2">
+        <ExchangeAdditionResults 
+          content={parsedContent} 
+          toolCallId={getToolCallId(message)}
+          toolName={message.name}
+        />
+      </div>
+    );
+  }
+
+  // Handle exchange addition errors
+  if (hasExchangeAdditionError) {
+    return (
+      <div className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2">
+        <ExchangeAdditionError 
+          content={parsedContent} 
+          toolCallId={getToolCallId(message)}
+          toolName={message.name}
+        />
+      </div>
+    );
+  }
+
 
   if (hasValidation) {
     return (

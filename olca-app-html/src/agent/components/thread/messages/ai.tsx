@@ -13,6 +13,7 @@ import { isAgentInboxInterruptSchema } from "@/lib/agent-inbox-interrupt";
 import { ThreadView } from "../agent-inbox";
 import { GenericInterruptView } from "./generic-interrupt";
 import { FoundationCreation } from "./foundation-creation";
+import { ApprovalDisplay } from "./approval-display";
 import { useArtifact } from "../artifact";
 
 // Function to detect our custom approval interrupt format
@@ -39,6 +40,18 @@ function isFoundationApprovalInterrupt(value: unknown): boolean {
     "action" in obj &&
     "impact" in obj &&
     "entity_details" in obj
+  );
+}
+
+// Function to detect product system creation interrupt format
+function isProductSystemCreationInterrupt(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const obj = value as Record<string, any>;
+  return (
+    "entity_type" in obj &&
+    obj.entity_type === "product_system" &&
+    "entity_summary" in obj &&
+    "action" in obj
   );
 }
 
@@ -113,7 +126,15 @@ function Interrupt({
         )}
       {isFoundationApprovalInterrupt(interruptValue) &&
         (isLastMessage || hasNoAIOrToolMessages) && (
-          <FoundationCreation 
+          <FoundationCreation
+            content={interruptValue as any}
+            toolCallId=""
+            toolName=""
+          />
+        )}
+      {isProductSystemCreationInterrupt(interruptValue) &&
+        (isLastMessage || hasNoAIOrToolMessages) && (
+          <ApprovalDisplay 
             content={interruptValue as any}
             toolCallId=""
             toolName=""
@@ -123,6 +144,7 @@ function Interrupt({
       !isAgentInboxInterruptSchema(interruptValue) &&
       !isCustomApprovalInterrupt(interruptValue) &&
       !isFoundationApprovalInterrupt(interruptValue) &&
+      !isProductSystemCreationInterrupt(interruptValue) &&
       (isLastMessage || hasNoAIOrToolMessages) ? (
         <GenericInterruptView interrupt={interruptValue} />
       ) : null}

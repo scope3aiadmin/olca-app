@@ -61,12 +61,15 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
   const [expandedMaterials, setExpandedMaterials] = useState<Set<string>>(new Set());
   const [expandedFlows, setExpandedFlows] = useState<Set<string>>(new Set());
   const [selectAllChecked, setSelectAllChecked] = useState<boolean | 'indeterminate'>(false);
+  const [isFeedbackMode, setIsFeedbackMode] = useState(false);
 
   const { search_results, total_flows_found, message } = content;
   const materialNames = Object.keys(search_results);
 
   // Handle select all functionality
   const handleSelectAll = (checked: boolean) => {
+    if (isFeedbackMode) return; // Disable selection in feedback mode
+    
     if (checked) {
       const allFlowIds = new Set<string>();
       Object.values(search_results).forEach(material => {
@@ -80,6 +83,8 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
 
   // Handle individual flow selection
   const handleFlowSelect = (flowId: string, checked: boolean) => {
+    if (isFeedbackMode) return; // Disable selection in feedback mode
+    
     const newSelected = new Set(selectedFlows);
     if (checked) {
       newSelected.add(flowId);
@@ -87,6 +92,18 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
       newSelected.delete(flowId);
     }
     setSelectedFlows(newSelected);
+  };
+
+  // Handle switching to selection mode
+  const handleSwitchToSelectionMode = () => {
+    setIsFeedbackMode(false);
+    setFeedback(""); // Clear feedback when switching to selection mode
+  };
+
+  // Handle switching to feedback mode
+  const handleSwitchToFeedbackMode = () => {
+    setIsFeedbackMode(true);
+    setSelectedFlows(new Set()); // Clear selections when switching to feedback mode
   };
 
   // Handle material group expansion
@@ -138,13 +155,8 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
         return null;
       }).filter(Boolean);
 
-      // Build user message for backend
-      // Backend expects: call search_exchanges_for_product_system with both selected_exchanges and feedback
-      // Backend will: 1) Add selected exchanges, 2) Process feedback, 3) Return refined search results
-      let userMessage = `Call search_exchanges_for_product_system tool with selected_exchanges parameter to add the selected flows, and also include feedback to refine the search.`;
-      
-      // Include the selected exchanges data and feedback for backend processing
-      userMessage += ` Selected exchanges data: ${JSON.stringify(selectedExchanges)}. Feedback: ${feedback.trim() || 'no additional feedback'}.`;
+      // Call add_exchanges_to_process with skip_approval=True
+      const userMessage = `Call add_exchanges_to_process tool with skip_approval=True to add the selected exchanges. Selected exchanges data: ${JSON.stringify(selectedExchanges)}.`;
       
       stream.submit(
         { messages: [{ type: "human", content: userMessage }] },
@@ -155,7 +167,7 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
         }
       );
       
-      toast.success(feedback.trim() ? "Adding selected flows and refining search..." : "Adding selected flows...");
+      toast.success("Adding selected flows...");
     } catch (error) {
       console.error("Error adding flows:", error);
       toast.error("Failed to add flows. Please try again.");
@@ -173,7 +185,7 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
 
     setIsSubmitting(true);
     try {
-      const userMessage = `Please refine the search with this feedback: ${feedback}`;
+      const userMessage = `Call search_exchanges_for_product_system tool to refine the search with this feedback: ${feedback}`;
       
       stream.submit(
         { messages: [{ type: "human", content: userMessage }] },
@@ -227,15 +239,48 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
           <p className="text-sm text-gray-500">Found {total_flows_found} flows across {materialNames.length} material(s)</p>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Select All */}
-          <div className="flex items-center space-x-2 border-b pb-3">
-            <Checkbox
-              checked={selectAllChecked}
-              onCheckedChange={handleSelectAll}
-            />
-            <label className="text-sm font-medium">
-              Select All ({selectedFlows.size} selected)
-            </label>
+          {/* Mode Selection and Select All */}
+          <div className="space-y-3 border-b pb-4">
+            {/* Mode Selection Buttons */}
+            <div className="flex items-center space-x-2">
+              <Button
+                variant={!isFeedbackMode ? "default" : "outline"}
+                size="sm"
+                onClick={handleSwitchToSelectionMode}
+                disabled={isSubmitting}
+              >
+                Select Exchanges
+              </Button>
+              <Button
+                variant={isFeedbackMode ? "default" : "outline"}
+                size="sm"
+                onClick={handleSwitchToFeedbackMode}
+                disabled={isSubmitting}
+              >
+                Refine Search
+              </Button>
+            </div>
+            
+            {/* Select All - only show in selection mode */}
+            {!isFeedbackMode && (
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  checked={selectAllChecked}
+                  onCheckedChange={handleSelectAll}
+                />
+                <label className="text-sm font-medium">
+                  Select All ({selectedFlows.size} selected)
+                </label>
+              </div>
+            )}
+            
+            {/* Mode indicator */}
+            <div className="text-xs text-gray-500">
+              {isFeedbackMode 
+                ? "Feedback mode: Provide feedback to refine search results" 
+                : "Selection mode: Select exchanges to add to the process"
+              }
+            </div>
           </div>
 
           {/* Material Groups */}
@@ -246,7 +291,7 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
             const selectedInMaterial = materialFlowIds.filter(id => selectedFlows.has(id)).length;
 
             return (
-              <div key={materialName} className="border rounded-lg">
+              <div key={materialName} className={`border rounded-lg ${isFeedbackMode ? 'opacity-60' : ''}`}>
                 <div 
                   className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50"
                   onClick={() => toggleMaterialExpansion(materialName)}
@@ -283,11 +328,12 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
                       const isSelected = selectedFlows.has(flow.flow_id);
 
                       return (
-                        <div key={flow.flow_id} className="border rounded-lg p-3">
+                        <div key={flow.flow_id} className={`border rounded-lg p-3 ${isFeedbackMode ? 'opacity-60' : ''}`}>
                           <div className="flex items-start space-x-3">
                             <Checkbox
                               checked={isSelected}
                               onCheckedChange={(checked) => handleFlowSelect(flow.flow_id, checked === true)}
+                              disabled={isFeedbackMode}
                             />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between">
@@ -345,16 +391,18 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
             );
           })}
 
-          {/* Feedback Section */}
-          <div className="space-y-3 pt-4 border-t">
-            <label className="text-sm font-medium">Refinement Feedback (Optional)</label>
-            <Textarea
-              placeholder="Provide feedback to refine the search results..."
-              value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-              className="min-h-[80px]"
-            />
-          </div>
+          {/* Feedback Section - only show in feedback mode */}
+          {isFeedbackMode && (
+            <div className="space-y-3 pt-4 border-t">
+              <label className="text-sm font-medium">Refinement Feedback</label>
+              <Textarea
+                placeholder="Provide feedback to refine the search results..."
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                className="min-h-[80px]"
+              />
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex items-center justify-between pt-4">
@@ -367,19 +415,21 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
             </Button>
             
             <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                onClick={handleRefineSearch}
-                disabled={isSubmitting || !feedback.trim()}
-              >
-                Refine Search
-              </Button>
-              <Button
-                onClick={handleAddSelected}
-                disabled={isSubmitting || selectedFlows.size === 0}
-              >
-                {feedback.trim() ? `Add & Refine (${selectedFlows.size})` : `Add Selected (${selectedFlows.size})`}
-              </Button>
+              {isFeedbackMode ? (
+                <Button
+                  onClick={handleRefineSearch}
+                  disabled={isSubmitting || !feedback.trim()}
+                >
+                  Refine Search Only
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleAddSelected}
+                  disabled={isSubmitting || selectedFlows.size === 0}
+                >
+                  Add Selected Exchanges ({selectedFlows.size})
+                </Button>
+              )}
             </div>
           </div>
         </CardContent>

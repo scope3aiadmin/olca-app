@@ -8,6 +8,7 @@ import { RollbackErrorDisplay } from "./rollback-error-display";
 import { ExchangeSearchResults } from "./exchange-search-results";
 import { ExchangeAdditionResults } from "./exchange-addition-results";
 import { ExchangeAdditionError } from "./exchange-addition-error";
+import { ApprovalDisplay } from "./approval-display";
 import { useLangGraphLogger } from "../../../hooks/use-langgraph-logger";
 
 function isComplexValue(value: any): boolean {
@@ -656,6 +657,18 @@ export function ToolResult({ message }: { message: ToolMessage }) {
     );
   }
 
+  // Handle generic approval requests
+  if (hasApproval) {
+    return (
+      <div className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2">
+        <ApprovalDisplay 
+          content={parsedContent} 
+          toolCallId={getToolCallId(message)}
+          toolName={message.name}
+        />
+      </div>
+    );
+  }
 
   const contentStr = isJsonContent
     ? JSON.stringify(parsedContent, null, 2)

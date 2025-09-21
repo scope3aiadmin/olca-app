@@ -2,13 +2,9 @@ import { AIMessage, ToolMessage } from "@langchain/langgraph-sdk";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { ValidationDisplay } from "./validation-display";
-import { FoundationCreation } from "./foundation-creation";
-import { RollbackErrorDisplay } from "./rollback-error-display";
+import { EntityApproval } from "./entity-approval";
 import { ExchangeSearchResults } from "./exchange-search-results";
-import { ExchangeAdditionResults } from "./exchange-addition-results";
-import { ExchangeAdditionError } from "./exchange-addition-error";
-import { ApprovalDisplay } from "./approval-display";
+import { formatErrorAsHumanMessage, extractErrorData } from "./error-formatter";
 import { useLangGraphLogger } from "../../../hooks/use-langgraph-logger";
 
 function isComplexValue(value: any): boolean {
@@ -55,15 +51,6 @@ function isApprovalRequired(content: any): boolean {
 }
 
 
-function isValidationComplete(content: any): boolean {
-  return content?.status === "validation_complete" && content?.process_id;
-}
-
-function isRollbackError(content: any): boolean {
-  return content?.status === "error" && 
-         content?.details?.includes("Rollback errors:");
-}
-
 function isExchangeSearchResults(content: any): boolean {
   return content?.status === "success" && 
          content?.search_results && 
@@ -77,35 +64,62 @@ function isExchangeAdditionResults(content: any): boolean {
          content?.search_metadata;
 }
 
-function isExchangeAdditionError(content: any): boolean {
-  return content?.status === "error" && 
-         (content?.validation_errors || 
-          content?.details?.includes("Failed to add selected exchanges") ||
-          content?.message?.includes("Exchange validation failed") ||
-          content?.message?.includes("Failed to add selected exchanges"));
+// Helper function to detect if content is an error that should be formatted as human message
+function isErrorContent(content: any): boolean {
+  return content?.status === "error" || 
+         content?.status === "validation_complete" ||
+         content?.validation_errors ||
+         content?.details?.includes("Rollback errors:") ||
+         content?.message?.includes("Exchange validation failed") ||
+         content?.message?.includes("Failed to add selected exchanges");
 }
 
-function parseRollbackErrors(content: any): {
-  mainError: string;
-  rollbackErrors: string[];
-  suggestion: string;
-} {
-  const mainError = content?.message || "Operation failed";
-  const suggestion = content?.suggestion || "";
+// Helper function to format exchange addition success as human message
+function formatExchangeAdditionSuccess(content: any): string {
+  const { 
+    message, 
+    exchanges_added = 0, 
+    search_metadata, 
+    next_action, 
+    state_update 
+  } = content;
+
+  let humanMessage = `✅ **Exchanges Added Successfully**\n\n`;
+  humanMessage += `**Summary:**\n`;
+  humanMessage += `• Added ${exchanges_added} exchanges to the process\n`;
   
-  let rollbackErrors: string[] = [];
-  if (content?.details) {
-    const detailsStr = content.details;
-    const rollbackMatch = detailsStr.match(/Rollback errors:\s*(.+)/s);
-    if (rollbackMatch) {
-      rollbackErrors = rollbackMatch[1]
-        .split(/Failed to delete/)
-        .filter((error: string) => error.trim())
-        .map((error: string) => `Failed to delete${error.trim()}`);
+  if (search_metadata) {
+    humanMessage += `• Total exchanges in process: ${search_metadata.total_exchanges_added}\n`;
+    if (search_metadata.materials_added.length > 0) {
+      humanMessage += `• Materials added: ${search_metadata.materials_added.join(', ')}\n`;
     }
   }
   
-  return { mainError, rollbackErrors, suggestion };
+  humanMessage += '\n';
+  
+  if (state_update) {
+    humanMessage += `**Current Process State:**\n`;
+    humanMessage += `• Stage: ${state_update.process_building_stage}\n`;
+    humanMessage += `• Total exchanges: ${state_update.current_process_exchanges.length}\n\n`;
+    
+    if (state_update.current_process_exchanges.length > 0) {
+      humanMessage += `**Current Exchanges:**\n`;
+      state_update.current_process_exchanges.forEach((exchange: any) => {
+        const badges = [];
+        if (exchange.is_input) badges.push('Input');
+        if (exchange.is_quantitative_reference) badges.push('Reference');
+        const badgeText = badges.length > 0 ? ` [${badges.join(', ')}]` : '';
+        humanMessage += `• ${exchange.flow_name} (${exchange.amount})${badgeText}\n`;
+      });
+      humanMessage += '\n';
+    }
+  }
+  
+  if (next_action) {
+    humanMessage += `**Next Step:** ${next_action}`;
+  }
+
+  return humanMessage;
 }
 
 function getToolCallId(message: ToolMessage): string | undefined {
@@ -278,21 +292,17 @@ export function ToolResult({ message }: { message: ToolMessage }) {
 
   // Check for special UI requirements - also check raw content for approval patterns
   let hasApproval = false;
-  let hasValidation = false;
   let hasFoundationApproval = false;
-  let hasRollbackError = false;
   let hasExchangeSearch = false;
   let hasExchangeAddition = false;
-  let hasExchangeAdditionError = false;
+  let hasError = false;
   
   if (isJsonContent) {
     hasApproval = isApprovalRequired(parsedContent);
-    hasValidation = isValidationComplete(parsedContent);
     hasFoundationApproval = isFoundationApprovalRequired(parsedContent);
-    hasRollbackError = isRollbackError(parsedContent);
     hasExchangeSearch = isExchangeSearchResults(parsedContent);
     hasExchangeAddition = isExchangeAdditionResults(parsedContent);
-    hasExchangeAdditionError = isExchangeAdditionError(parsedContent);
+    hasError = isErrorContent(parsedContent);
   }
   
   // Log special UI detection
@@ -301,18 +311,14 @@ export function ToolResult({ message }: { message: ToolMessage }) {
       logSpecialUI('foundation_approval', parsedContent, message.name);
     } else if (hasApproval) {
       logSpecialUI('approval', parsedContent, message.name);
-    } else if (hasValidation) {
-      logSpecialUI('validation', parsedContent, message.name);
-    } else if (hasRollbackError) {
-      logSpecialUI('rollback_error', parsedContent, message.name);
     } else if (hasExchangeSearch) {
       logSpecialUI('exchange_search', parsedContent, message.name);
     } else if (hasExchangeAddition) {
       logSpecialUI('exchange_addition', parsedContent, message.name);
-    } else if (hasExchangeAdditionError) {
-      logSpecialUI('exchange_addition_error', parsedContent, message.name);
+    } else if (hasError) {
+      logSpecialUI('error', parsedContent, message.name);
     }
-  }, [hasFoundationApproval, hasApproval, hasValidation, hasRollbackError, hasExchangeSearch, hasExchangeAddition, hasExchangeAdditionError, parsedContent, message.name, logSpecialUI]);
+  }, [hasFoundationApproval, hasApproval, hasExchangeSearch, hasExchangeAddition, hasError, parsedContent, message.name, logSpecialUI]);
   
   // Also check for interrupt data in parsed JSON content (when it's nested in error responses)
   if (!hasApproval && isJsonContent && parsedContent?.details) {
@@ -548,16 +554,15 @@ export function ToolResult({ message }: { message: ToolMessage }) {
 
 
   // Minimal logging - only log once when special UI is first detected
-  if ((hasApproval || hasValidation || hasFoundationApproval || hasRollbackError || hasExchangeSearch || hasExchangeAddition || hasExchangeAdditionError) && !hasLoggedSpecialUI) {
+  if ((hasApproval || hasFoundationApproval || hasExchangeSearch || hasExchangeAddition || hasError) && !hasLoggedSpecialUI) {
     console.log('🔍 Special UI detected:', {
       toolName: message.name,
       type: hasFoundationApproval ? 'foundation_approval' : 
-            hasRollbackError ? 'rollback_error' :
             hasExchangeSearch ? 'exchange_search' :
             hasExchangeAddition ? 'exchange_addition' :
-            hasExchangeAdditionError ? 'exchange_addition_error' :
+            hasError ? 'error' :
             hasApproval ? 'approval' : 
-            'validation'
+            'none'
     });
     setHasLoggedSpecialUI(true);
   }
@@ -569,37 +574,25 @@ export function ToolResult({ message }: { message: ToolMessage }) {
       status: 'completed',
       contentLength: contentAnalysis.length,
       contentType: contentAnalysis.isJson ? 'json' : 'string',
-      hasSpecialUI: hasApproval || hasValidation || hasFoundationApproval || hasRollbackError || hasExchangeSearch || hasExchangeAddition || hasExchangeAdditionError,
+      hasSpecialUI: hasApproval || hasFoundationApproval || hasExchangeSearch || hasExchangeAddition || hasError,
       specialUIType: (hasFoundationApproval ? 'foundation_approval' :
-                    hasRollbackError ? 'rollback_error' :
                     hasExchangeSearch ? 'exchange_search' :
                     hasExchangeAddition ? 'exchange_addition' :
-                    hasExchangeAdditionError ? 'exchange_addition_error' :
+                    hasError ? 'error' :
                     hasApproval ? 'approval' : 
-                    hasValidation ? 'validation' : 'none') as 'approval' | 'validation' | 'foundation_approval' | 'rollback_error' | 'exchange_search' | 'exchange_addition' | 'exchange_addition_error' | 'none'
+                    'none') as 'approval' | 'foundation_approval' | 'exchange_search' | 'exchange_addition' | 'error' | 'none'
     });
 
-  }, [message, logMessage, isJsonContent, parsedContent, hasApproval, hasValidation, hasFoundationApproval, hasRollbackError, hasExchangeSearch, hasExchangeAddition, hasExchangeAdditionError]);
+  }, [message, logMessage, isJsonContent, parsedContent, hasApproval, hasFoundationApproval, hasExchangeSearch, hasExchangeAddition, hasError]);
 
   // Handle foundation approval requests
   if (hasFoundationApproval) {
     return (
       <div className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2">
-        <FoundationCreation 
+        <EntityApproval 
           content={parsedContent} 
           toolCallId={getToolCallId(message)}
           toolName={message.name}
-        />
-      </div>
-    );
-  }
-
-  // Handle rollback errors
-  if (hasRollbackError) {
-    return (
-      <div className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2">
-        <RollbackErrorDisplay 
-          content={parsedContent}
         />
       </div>
     );
@@ -618,41 +611,29 @@ export function ToolResult({ message }: { message: ToolMessage }) {
     );
   }
 
-  // Handle exchange addition results
+  // Handle exchange addition results as human messages
   if (hasExchangeAddition) {
+    const humanMessage = formatExchangeAdditionSuccess(parsedContent);
+    
     return (
       <div className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2">
-        <ExchangeAdditionResults 
-          content={parsedContent} 
-          toolCallId={getToolCallId(message)}
-          toolName={message.name}
-        />
+        <div className="bg-muted ml-auto w-fit rounded-3xl px-4 py-2 text-right whitespace-pre-wrap">
+          {humanMessage}
+        </div>
       </div>
     );
   }
 
-  // Handle exchange addition errors
-  if (hasExchangeAdditionError) {
+  // Handle errors by formatting them as human messages
+  if (hasError) {
+    const errorData = extractErrorData(parsedContent);
+    const humanMessage = formatErrorAsHumanMessage(errorData);
+    
     return (
       <div className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2">
-        <ExchangeAdditionError 
-          content={parsedContent} 
-          toolCallId={getToolCallId(message)}
-          toolName={message.name}
-        />
-      </div>
-    );
-  }
-
-
-  if (hasValidation) {
-    return (
-      <div className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2">
-        <ValidationDisplay 
-          content={parsedContent} 
-          toolCallId={getToolCallId(message)}
-          toolName={message.name}
-        />
+        <div className="bg-muted ml-auto w-fit rounded-3xl px-4 py-2 text-right whitespace-pre-wrap">
+          {humanMessage}
+        </div>
       </div>
     );
   }
@@ -661,7 +642,7 @@ export function ToolResult({ message }: { message: ToolMessage }) {
   if (hasApproval) {
     return (
       <div className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2">
-        <ApprovalDisplay 
+        <EntityApproval 
           content={parsedContent} 
           toolCallId={getToolCallId(message)}
           toolName={message.name}

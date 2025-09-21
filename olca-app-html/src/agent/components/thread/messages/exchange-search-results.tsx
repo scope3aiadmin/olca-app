@@ -4,7 +4,7 @@ import { Textarea } from "../../ui/textarea";
 import { Checkbox } from "../../ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Badge } from "../../ui/badge";
-import { ChevronDown, ChevronUp, XCircle } from "lucide-react";
+import { ChevronDown, ChevronUp, XCircle, Database } from "lucide-react";
 import { useStreamContext } from "../../../providers/Stream";
 import { toast } from "sonner";
 
@@ -228,15 +228,15 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
   }, [selectedFlows, search_results]);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6">
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <XCircle className="h-5 w-5 text-blue-600" />
+        <CardHeader className="bg-purple-50/50 border-purple-200">
+          <CardTitle className="flex items-center gap-2 text-purple-900">
+            <Database className="h-5 w-5 text-purple-600" />
             Exchange Search Results
           </CardTitle>
-          <p className="text-sm text-gray-600">{message}</p>
-          <p className="text-sm text-gray-500">Found {total_flows_found} flows across {materialNames.length} material(s)</p>
+          <p className="text-sm text-purple-700">{message}</p>
+          <p className="text-sm text-purple-600">Found {total_flows_found} flows across {materialNames.length} material(s)</p>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Mode Selection and Select All */}
@@ -291,35 +291,35 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
             const selectedInMaterial = materialFlowIds.filter(id => selectedFlows.has(id)).length;
 
             return (
-              <div key={materialName} className={`border rounded-lg ${isFeedbackMode ? 'opacity-60' : ''}`}>
+              <div key={materialName} className={`border border-purple-200 rounded-lg bg-purple-50/30 ${isFeedbackMode ? 'opacity-60' : ''}`}>
                 <div 
-                  className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50"
+                  className="flex items-center justify-between p-4 cursor-pointer hover:bg-purple-100/50 transition-colors"
                   onClick={() => toggleMaterialExpansion(materialName)}
                 >
                   <div className="flex items-center space-x-3">
-                    <Badge variant="outline" className="capitalize">
+                    <Badge variant="outline" className="capitalize border-purple-300 text-purple-700">
                       {material.material_type}
                     </Badge>
-                    <span className="font-medium">{materialName}</span>
-                    <span className="text-sm text-gray-500">
+                    <span className="font-medium text-purple-900">{materialName}</span>
+                    <span className="text-sm text-purple-600">
                       ({material.flows.length} flows)
                     </span>
                     {selectedInMaterial > 0 && (
-                      <Badge variant="secondary">
+                      <Badge variant="secondary" className="bg-purple-200 text-purple-800">
                         {selectedInMaterial} selected
                       </Badge>
                     )}
                   </div>
                   {isExpanded ? (
-                    <ChevronUp className="h-4 w-4" />
+                    <ChevronUp className="h-4 w-4 text-purple-600" />
                   ) : (
-                    <ChevronDown className="h-4 w-4" />
+                    <ChevronDown className="h-4 w-4 text-purple-600" />
                   )}
                 </div>
 
                 {isExpanded && (
-                  <div className="border-t p-4 space-y-3">
-                    <p className="text-sm text-gray-600 mb-3">
+                  <div className="border-t border-purple-200 p-4 space-y-3">
+                    <p className="text-sm text-purple-700 mb-3">
                       {material.original_description}
                     </p>
                     
@@ -328,19 +328,21 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
                       const isSelected = selectedFlows.has(flow.flow_id);
 
                       return (
-                        <div key={flow.flow_id} className={`border rounded-lg p-3 ${isFeedbackMode ? 'opacity-60' : ''}`}>
+                        <div key={flow.flow_id} className={`border border-purple-200 rounded-lg p-3 bg-white ${isFeedbackMode ? 'opacity-60' : ''}`}>
                           <div className="flex items-start space-x-3">
                             <Checkbox
                               checked={isSelected}
                               onCheckedChange={(checked) => handleFlowSelect(flow.flow_id, checked === true)}
                               disabled={isFeedbackMode}
+                              className="data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600"
                             />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between">
-                                <h4 className="font-medium text-sm">{flow.flow_name}</h4>
+                                <h4 className="font-medium text-sm text-purple-900">{flow.flow_name}</h4>
                                 <Button
                                   variant="ghost"
                                   size="sm"
+                                  className="text-purple-600 hover:text-purple-700 hover:bg-purple-100"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     toggleFlowExpansion(flow.flow_id);
@@ -353,15 +355,15 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
                                   )}
                                 </Button>
                               </div>
-                              <p className="text-sm text-gray-600 mt-1">{flow.process_name}</p>
+                              <p className="text-sm text-purple-700 mt-1">{flow.process_name}</p>
                               <div className="flex items-center gap-2 mt-2">
-                                <Badge variant="outline" className="text-xs">
+                                <Badge variant="outline" className="text-xs border-purple-300 text-purple-700">
                                   {flow.location}
                                 </Badge>
-                                <Badge variant="outline" className="text-xs">
+                                <Badge variant="outline" className="text-xs border-purple-300 text-purple-700">
                                   {flow.converted_amount} {flow.converted_unit}
                                 </Badge>
-                                <span className="text-xs text-gray-500">
+                                <span className="text-xs text-purple-500">
                                   ID: {flow.flow_id}
                                 </span>
                               </div>
@@ -369,15 +371,15 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
                           </div>
 
                           {isFlowExpanded && flow.documentation && (
-                            <div className="mt-3 pl-6 space-y-2 text-xs text-gray-600">
+                            <div className="mt-3 pl-6 space-y-2 text-xs text-purple-600 border-t border-purple-100 pt-3">
                               {flow.documentation.technology_description && (
                                 <div>
-                                  <strong>Technology:</strong> {flow.documentation.technology_description.substring(0, 200)}...
+                                  <strong className="text-purple-800">Technology:</strong> {flow.documentation.technology_description.substring(0, 200)}...
                                 </div>
                               )}
                               {flow.documentation.intended_application && (
                                 <div>
-                                  <strong>Application:</strong> {flow.documentation.intended_application.substring(0, 200)}...
+                                  <strong className="text-purple-800">Application:</strong> {flow.documentation.intended_application.substring(0, 200)}...
                                 </div>
                               )}
                             </div>
@@ -419,6 +421,7 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
                 <Button
                   onClick={handleRefineSearch}
                   disabled={isSubmitting || !feedback.trim()}
+                  className="bg-purple-600 hover:bg-purple-700"
                 >
                   Refine Search Only
                 </Button>
@@ -426,6 +429,7 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
                 <Button
                   onClick={handleAddSelected}
                   disabled={isSubmitting || selectedFlows.size === 0}
+                  className="bg-purple-600 hover:bg-purple-700"
                 >
                   Add Selected Exchanges ({selectedFlows.size})
                 </Button>

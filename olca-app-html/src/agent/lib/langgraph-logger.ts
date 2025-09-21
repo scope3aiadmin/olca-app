@@ -47,7 +47,7 @@ export interface LangGraphMessageMetadata {
   contentLength: number;
   contentType: 'string' | 'json' | 'binary' | 'unknown';
   hasSpecialUI?: boolean;
-  specialUIType?: 'approval' | 'validation' | 'foundation_approval' | 'rollback_error' | 'exchange_search' | 'exchange_addition' | 'exchange_addition_error' | 'none';
+  specialUIType?: 'approval' | 'foundation_approval' | 'exchange_search' | 'exchange_addition' | 'error' | 'none';
 }
 
 export interface LangGraphStreamEvent {

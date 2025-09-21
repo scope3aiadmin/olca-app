@@ -12,8 +12,7 @@ import { Fragment } from "react";
 import { isAgentInboxInterruptSchema } from "@/lib/agent-inbox-interrupt";
 import { ThreadView } from "../agent-inbox";
 import { GenericInterruptView } from "./generic-interrupt";
-import { FoundationCreation } from "./foundation-creation";
-import { ApprovalDisplay } from "./approval-display";
+import { EntityApproval } from "./entity-approval";
 import { useArtifact } from "../artifact";
 
 // Function to detect our custom approval interrupt format
@@ -124,17 +123,9 @@ function Interrupt({
         (isLastMessage || hasNoAIOrToolMessages) && (
           <ThreadView interrupt={interruptValue} />
         )}
-      {isFoundationApprovalInterrupt(interruptValue) &&
+      {(isFoundationApprovalInterrupt(interruptValue) || isProductSystemCreationInterrupt(interruptValue)) &&
         (isLastMessage || hasNoAIOrToolMessages) && (
-          <FoundationCreation
-            content={interruptValue as any}
-            toolCallId=""
-            toolName=""
-          />
-        )}
-      {isProductSystemCreationInterrupt(interruptValue) &&
-        (isLastMessage || hasNoAIOrToolMessages) && (
-          <ApprovalDisplay 
+          <EntityApproval
             content={interruptValue as any}
             toolCallId=""
             toolName=""

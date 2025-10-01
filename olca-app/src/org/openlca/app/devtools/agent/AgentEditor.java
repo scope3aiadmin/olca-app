@@ -196,7 +196,7 @@ public class AgentEditor extends ScriptingEditor {
 	}
 
 	@Override
-	protected void doSave(org.eclipse.core.runtime.IProgressMonitor monitor) {
+	public void doSave(org.eclipse.core.runtime.IProgressMonitor monitor) {
 		// Save chat history or agent configuration
 		if (page != null) {
 			var messages = page.getChatMessages();
@@ -206,8 +206,13 @@ public class AgentEditor extends ScriptingEditor {
 		}
 	}
 
+	private void setDirty(boolean b) {
+		// TODO Auto-generated method stub
+		
+	}
+
 	@Override
-	protected void doSaveAs() {
+	public void doSaveAs() {
 		// Implement save as functionality for agent configurations
 		// This could save chat history, agent settings, etc.
 		super.doSaveAs();

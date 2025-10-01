@@ -12,7 +12,47 @@ import { Fragment } from "react";
 import { isAgentInboxInterruptSchema } from "@/lib/agent-inbox-interrupt";
 import { ThreadView } from "../agent-inbox";
 import { GenericInterruptView } from "./generic-interrupt";
+import { EntityApproval } from "./entity-approval";
 import { useArtifact } from "../artifact";
+
+// Function to detect our custom approval interrupt format
+function isCustomApprovalInterrupt(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const obj = value as Record<string, any>;
+  return (
+    "entity_type" in obj &&
+    "entity_summary" in obj &&
+    "action" in obj &&
+    "impact" in obj &&
+    "entity_details" in obj
+  );
+}
+
+// Function to detect foundation approval interrupt format
+function isFoundationApprovalInterrupt(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const obj = value as Record<string, any>;
+  return (
+    "entity_type" in obj &&
+    obj.entity_type === "product_system_foundation" &&
+    "entity_summary" in obj &&
+    "action" in obj &&
+    "impact" in obj &&
+    "entity_details" in obj
+  );
+}
+
+// Function to detect product system creation interrupt format
+function isProductSystemCreationInterrupt(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const obj = value as Record<string, any>;
+  return (
+    "entity_type" in obj &&
+    obj.entity_type === "product_system" &&
+    "entity_summary" in obj &&
+    "action" in obj
+  );
+}
 
 function CustomComponent({
   message,
@@ -83,8 +123,19 @@ function Interrupt({
         (isLastMessage || hasNoAIOrToolMessages) && (
           <ThreadView interrupt={interruptValue} />
         )}
+      {(isFoundationApprovalInterrupt(interruptValue) || isProductSystemCreationInterrupt(interruptValue)) &&
+        (isLastMessage || hasNoAIOrToolMessages) && (
+          <EntityApproval
+            content={interruptValue as any}
+            toolCallId=""
+            toolName=""
+          />
+        )}
       {interruptValue &&
       !isAgentInboxInterruptSchema(interruptValue) &&
+      !isCustomApprovalInterrupt(interruptValue) &&
+      !isFoundationApprovalInterrupt(interruptValue) &&
+      !isProductSystemCreationInterrupt(interruptValue) &&
       (isLastMessage || hasNoAIOrToolMessages) ? (
         <GenericInterruptView interrupt={interruptValue} />
       ) : null}
@@ -106,7 +157,6 @@ export function AssistantMessage({
   const content = message?.content ?? [];
   const contentString = getContentString(content);
 
-  console.log("hideToolCalls ai.tsx", hideToolCalls);
   const thread = useStreamContext();
   const isLastMessage =
     thread.messages[thread.messages.length - 1].id === message?.id;

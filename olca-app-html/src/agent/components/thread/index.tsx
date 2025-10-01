@@ -38,6 +38,7 @@ import {
   ArtifactTitle,
   useArtifactContext,
 } from "./artifact";
+import { DebugPanel } from "../debug/debug-panel"; // Debug panel for log access
 
 function StickyToBottomContent(props: {
   content: ReactNode;
@@ -93,7 +94,6 @@ export function Thread() {
     "hideToolCalls",
     parseAsBoolean.withDefault(false),
   );
-  console.log("hideToolCalls index.tsx", hideToolCalls);
   const [input, setInput] = useState("");
   const {
     contentBlocks,
@@ -161,8 +161,10 @@ export function Thread() {
       setFirstTokenReceived(true);
     }
 
+    // Message changes are now handled by the DebugPanel
+
     prevMessageLength.current = messages.length;
-  }, [messages]);
+  }, [messages, isLoading]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -184,6 +186,8 @@ export function Thread() {
     const context =
       Object.keys(artifactContext).length > 0 ? artifactContext : undefined;
 
+    // Message submission is now handled by the DebugPanel
+
     stream.submit(
       { messages: [...toolMessages, newHumanMessage], context },
       {
@@ -193,8 +197,9 @@ export function Thread() {
         optimisticValues: (prev) => ({
           ...prev,
           context,
+          created_processes: prev?.created_processes ?? [], // Ensure created_processes is always an array
           messages: [
-            ...(prev.messages ?? []),
+            ...(prev?.messages ?? []),
             ...toolMessages,
             newHumanMessage,
           ],
@@ -212,6 +217,9 @@ export function Thread() {
     // Do this so the loading state is correct
     prevMessageLength.current = prevMessageLength.current - 1;
     setFirstTokenReceived(false);
+    
+    // Regeneration is now handled by the DebugPanel
+    
     stream.submit(undefined, {
       checkpoint: parentCheckpoint,
       streamMode: ["values"],
@@ -389,6 +397,7 @@ export function Thread() {
                       hideToolCalls={hideToolCalls ?? false}
                     />
                   )}
+                  
                   {isLoading && !firstTokenReceived && (
                     <AssistantMessageLoading />
                   )}
@@ -525,6 +534,12 @@ export function Thread() {
           </div>
         </div>
       </div>
+
+      {/* Debug Panel for easy log access */}
+      <DebugPanel 
+        messages={messages}
+        threadId={threadId || undefined}
+      />
     </div>
   );
 }

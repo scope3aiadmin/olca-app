@@ -1,0 +1,443 @@
+import React, { useState, useRef } from "react";
+import { Button } from "../../ui/button";
+import { Textarea } from "../../ui/textarea";
+import { Checkbox } from "../../ui/checkbox";
+import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
+import { Badge } from "../../ui/badge";
+import { ChevronDown, ChevronUp, XCircle, Database } from "lucide-react";
+import { useStreamContext } from "../../../providers/Stream";
+import { toast } from "sonner";
+
+interface Flow {
+  flow_id: string;
+  process_id: string;
+  flow_name: string;
+  process_name: string;
+  location: string;
+  original_amount: number;
+  original_unit: string;
+  converted_amount: number;
+  converted_unit: string;
+  material_type: string;
+  search_keyword: string;
+  documentation?: {
+    technology_description?: string;
+    intended_application?: string;
+    geography_description?: string;
+    time_description?: string;
+  };
+}
+
+interface MaterialGroup {
+  original_description: string;
+  material_type: string;
+  flows: Flow[];
+}
+
+interface SearchResults {
+  [materialName: string]: MaterialGroup;
+}
+
+interface ExchangeSearchResultsProps {
+  content: {
+    status: string;
+    message: string;
+    search_results: SearchResults;
+    approved_exchanges?: any[];
+    is_final_search?: boolean;
+    next_action?: string;
+    search_strategy?: any;
+    total_flows_found: number;
+  };
+  toolCallId: string;
+  toolName: string;
+}
+
+export function ExchangeSearchResults({ content, toolCallId, toolName }: ExchangeSearchResultsProps) {
+  const stream = useStreamContext();
+  const [selectedFlows, setSelectedFlows] = useState<Set<string>>(new Set());
+  const [feedback, setFeedback] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [expandedMaterials, setExpandedMaterials] = useState<Set<string>>(new Set());
+  const [expandedFlows, setExpandedFlows] = useState<Set<string>>(new Set());
+  const [selectAllChecked, setSelectAllChecked] = useState<boolean | 'indeterminate'>(false);
+  const [isFeedbackMode, setIsFeedbackMode] = useState(false);
+
+  const { search_results, total_flows_found, message } = content;
+  const materialNames = Object.keys(search_results);
+
+  // Handle select all functionality
+  const handleSelectAll = (checked: boolean) => {
+    if (isFeedbackMode) return; // Disable selection in feedback mode
+    
+    if (checked) {
+      const allFlowIds = new Set<string>();
+      Object.values(search_results).forEach(material => {
+        material.flows.forEach(flow => allFlowIds.add(flow.flow_id));
+      });
+      setSelectedFlows(allFlowIds);
+    } else {
+      setSelectedFlows(new Set());
+    }
+  };
+
+  // Handle individual flow selection
+  const handleFlowSelect = (flowId: string, checked: boolean) => {
+    if (isFeedbackMode) return; // Disable selection in feedback mode
+    
+    const newSelected = new Set(selectedFlows);
+    if (checked) {
+      newSelected.add(flowId);
+    } else {
+      newSelected.delete(flowId);
+    }
+    setSelectedFlows(newSelected);
+  };
+
+  // Handle switching to selection mode
+  const handleSwitchToSelectionMode = () => {
+    setIsFeedbackMode(false);
+    setFeedback(""); // Clear feedback when switching to selection mode
+  };
+
+  // Handle switching to feedback mode
+  const handleSwitchToFeedbackMode = () => {
+    setIsFeedbackMode(true);
+    setSelectedFlows(new Set()); // Clear selections when switching to feedback mode
+  };
+
+  // Handle material group expansion
+  const toggleMaterialExpansion = (materialName: string) => {
+    const newExpanded = new Set(expandedMaterials);
+    if (newExpanded.has(materialName)) {
+      newExpanded.delete(materialName);
+    } else {
+      newExpanded.add(materialName);
+    }
+    setExpandedMaterials(newExpanded);
+  };
+
+  // Handle flow expansion
+  const toggleFlowExpansion = (flowId: string) => {
+    const newExpanded = new Set(expandedFlows);
+    if (newExpanded.has(flowId)) {
+      newExpanded.delete(flowId);
+    } else {
+      newExpanded.add(flowId);
+    }
+    setExpandedFlows(newExpanded);
+  };
+
+  // Handle adding selected flows
+  const handleAddSelected = async () => {
+    if (selectedFlows.size === 0) {
+      toast.error("Please select at least one flow to add");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // Prepare selected exchanges data
+      const selectedExchanges = Array.from(selectedFlows).map(flowId => {
+        // Find the flow data from search results
+        for (const material of Object.values(search_results)) {
+          const flow = material.flows.find(f => f.flow_id === flowId);
+          if (flow) {
+            return {
+              flow_id: flow.flow_id,
+              process_id: flow.process_id,
+              amount: flow.converted_amount,
+              unit: flow.converted_unit,
+              is_input: flow.material_type === 'input'
+            };
+          }
+        }
+        return null;
+      }).filter(Boolean);
+
+      // Call add_exchanges_to_process with skip_approval=True
+      const userMessage = `Call add_exchanges_to_process tool with skip_approval=True to add the selected exchanges. Selected exchanges data: ${JSON.stringify(selectedExchanges)}.`;
+      
+      stream.submit(
+        { messages: [{ type: "human", content: userMessage }] },
+        {
+          streamMode: ["values"],
+          streamSubgraphs: true,
+          streamResumable: true,
+        }
+      );
+      
+      toast.success("Adding selected flows...");
+    } catch (error) {
+      console.error("Error adding flows:", error);
+      toast.error("Failed to add flows. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle refining search
+  const handleRefineSearch = async () => {
+    if (!feedback.trim()) {
+      toast.error("Please provide feedback for refining the search");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const userMessage = `Call search_exchanges_for_product_system tool to refine the search with this feedback: ${feedback}`;
+      
+      stream.submit(
+        { messages: [{ type: "human", content: userMessage }] },
+        {
+          streamMode: ["values"],
+          streamSubgraphs: true,
+          streamResumable: true,
+        }
+      );
+      
+      toast.success("Refining search...");
+    } catch (error) {
+      console.error("Error refining search:", error);
+      toast.error("Failed to refine search. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle back to chat
+  const handleBackToChat = () => {
+    // This will just let the user continue with normal chat
+    toast.info("You can now continue with normal chat");
+  };
+
+  // Update select all checkbox state
+  React.useEffect(() => {
+    const allFlowIds = new Set<string>();
+    Object.values(search_results).forEach(material => {
+      material.flows.forEach(flow => allFlowIds.add(flow.flow_id));
+    });
+    
+    if (selectedFlows.size === 0) {
+      setSelectAllChecked(false);
+    } else if (selectedFlows.size === allFlowIds.size) {
+      setSelectAllChecked(true);
+    } else {
+      setSelectAllChecked('indeterminate');
+    }
+  }, [selectedFlows, search_results]);
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-6">
+      <Card>
+        <CardHeader className="bg-purple-50/50 border-purple-200">
+          <CardTitle className="flex items-center gap-2 text-purple-900">
+            <Database className="h-5 w-5 text-purple-600" />
+            Exchange Search Results
+          </CardTitle>
+          <p className="text-sm text-purple-700">{message}</p>
+          <p className="text-sm text-purple-600">Found {total_flows_found} flows across {materialNames.length} material(s)</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Mode Selection and Select All */}
+          <div className="space-y-3 border-b pb-4">
+            {/* Mode Selection Buttons */}
+            <div className="flex items-center space-x-2">
+              <Button
+                variant={!isFeedbackMode ? "default" : "outline"}
+                size="sm"
+                onClick={handleSwitchToSelectionMode}
+                disabled={isSubmitting}
+              >
+                Select Exchanges
+              </Button>
+              <Button
+                variant={isFeedbackMode ? "default" : "outline"}
+                size="sm"
+                onClick={handleSwitchToFeedbackMode}
+                disabled={isSubmitting}
+              >
+                Refine Search
+              </Button>
+            </div>
+            
+            {/* Select All - only show in selection mode */}
+            {!isFeedbackMode && (
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  checked={selectAllChecked}
+                  onCheckedChange={handleSelectAll}
+                />
+                <label className="text-sm font-medium">
+                  Select All ({selectedFlows.size} selected)
+                </label>
+              </div>
+            )}
+            
+            {/* Mode indicator */}
+            <div className="text-xs text-gray-500">
+              {isFeedbackMode 
+                ? "Feedback mode: Provide feedback to refine search results" 
+                : "Selection mode: Select exchanges to add to the process"
+              }
+            </div>
+          </div>
+
+          {/* Material Groups */}
+          {materialNames.map((materialName) => {
+            const material = search_results[materialName];
+            const isExpanded = expandedMaterials.has(materialName);
+            const materialFlowIds = material.flows.map(flow => flow.flow_id);
+            const selectedInMaterial = materialFlowIds.filter(id => selectedFlows.has(id)).length;
+
+            return (
+              <div key={materialName} className={`border border-purple-200 rounded-lg bg-purple-50/30 ${isFeedbackMode ? 'opacity-60' : ''}`}>
+                <div 
+                  className="flex items-center justify-between p-4 cursor-pointer hover:bg-purple-100/50 transition-colors"
+                  onClick={() => toggleMaterialExpansion(materialName)}
+                >
+                  <div className="flex items-center space-x-3">
+                    <Badge variant="outline" className="capitalize border-purple-300 text-purple-700">
+                      {material.material_type}
+                    </Badge>
+                    <span className="font-medium text-purple-900">{materialName}</span>
+                    <span className="text-sm text-purple-600">
+                      ({material.flows.length} flows)
+                    </span>
+                    {selectedInMaterial > 0 && (
+                      <Badge variant="secondary" className="bg-purple-200 text-purple-800">
+                        {selectedInMaterial} selected
+                      </Badge>
+                    )}
+                  </div>
+                  {isExpanded ? (
+                    <ChevronUp className="h-4 w-4 text-purple-600" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-purple-600" />
+                  )}
+                </div>
+
+                {isExpanded && (
+                  <div className="border-t border-purple-200 p-4 space-y-3">
+                    <p className="text-sm text-purple-700 mb-3">
+                      {material.original_description}
+                    </p>
+                    
+                    {material.flows.map((flow) => {
+                      const isFlowExpanded = expandedFlows.has(flow.flow_id);
+                      const isSelected = selectedFlows.has(flow.flow_id);
+
+                      return (
+                        <div key={flow.flow_id} className={`border border-purple-200 rounded-lg p-3 bg-white ${isFeedbackMode ? 'opacity-60' : ''}`}>
+                          <div className="flex items-start space-x-3">
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={(checked) => handleFlowSelect(flow.flow_id, checked === true)}
+                              disabled={isFeedbackMode}
+                              className="data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between">
+                                <h4 className="font-medium text-sm text-purple-900">{flow.flow_name}</h4>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-purple-600 hover:text-purple-700 hover:bg-purple-100"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleFlowExpansion(flow.flow_id);
+                                  }}
+                                >
+                                  {isFlowExpanded ? (
+                                    <ChevronUp className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </div>
+                              <p className="text-sm text-purple-700 mt-1">{flow.process_name}</p>
+                              <div className="flex items-center gap-2 mt-2">
+                                <Badge variant="outline" className="text-xs border-purple-300 text-purple-700">
+                                  {flow.location}
+                                </Badge>
+                                <Badge variant="outline" className="text-xs border-purple-300 text-purple-700">
+                                  {flow.converted_amount} {flow.converted_unit}
+                                </Badge>
+                                <span className="text-xs text-purple-500">
+                                  ID: {flow.flow_id}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {isFlowExpanded && flow.documentation && (
+                            <div className="mt-3 pl-6 space-y-2 text-xs text-purple-600 border-t border-purple-100 pt-3">
+                              {flow.documentation.technology_description && (
+                                <div>
+                                  <strong className="text-purple-800">Technology:</strong> {flow.documentation.technology_description.substring(0, 200)}...
+                                </div>
+                              )}
+                              {flow.documentation.intended_application && (
+                                <div>
+                                  <strong className="text-purple-800">Application:</strong> {flow.documentation.intended_application.substring(0, 200)}...
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Feedback Section - only show in feedback mode */}
+          {isFeedbackMode && (
+            <div className="space-y-3 pt-4 border-t">
+              <label className="text-sm font-medium">Refinement Feedback</label>
+              <Textarea
+                placeholder="Provide feedback to refine the search results..."
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                className="min-h-[80px]"
+              />
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-between pt-4">
+            <Button
+              variant="outline"
+              onClick={handleBackToChat}
+              disabled={isSubmitting}
+            >
+              Back to Chat
+            </Button>
+            
+            <div className="flex items-center space-x-2">
+              {isFeedbackMode ? (
+                <Button
+                  onClick={handleRefineSearch}
+                  disabled={isSubmitting || !feedback.trim()}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  Refine Search Only
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleAddSelected}
+                  disabled={isSubmitting || selectedFlows.size === 0}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  Add Selected Exchanges ({selectedFlows.size})
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

@@ -1,10 +1,9 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import { Button } from "../../ui/button";
-import { Textarea } from "../../ui/textarea";
 import { Checkbox } from "../../ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Badge } from "../../ui/badge";
-import { ChevronDown, ChevronUp, XCircle, Database } from "lucide-react";
+import { ChevronDown, ChevronUp, Database } from "lucide-react";
 import { useStreamContext } from "../../../providers/Stream";
 import { toast } from "sonner";
 
@@ -56,35 +55,16 @@ interface ExchangeSearchResultsProps {
 export function ExchangeSearchResults({ content, toolCallId, toolName }: ExchangeSearchResultsProps) {
   const stream = useStreamContext();
   const [selectedFlows, setSelectedFlows] = useState<Set<string>>(new Set());
-  const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expandedMaterials, setExpandedMaterials] = useState<Set<string>>(new Set());
   const [expandedFlows, setExpandedFlows] = useState<Set<string>>(new Set());
-  const [selectAllChecked, setSelectAllChecked] = useState<boolean | 'indeterminate'>(false);
-  const [isFeedbackMode, setIsFeedbackMode] = useState(false);
+  const [expandedDocumentation, setExpandedDocumentation] = useState<Set<string>>(new Set());
 
   const { search_results, total_flows_found, message } = content;
   const materialNames = Object.keys(search_results);
 
-  // Handle select all functionality
-  const handleSelectAll = (checked: boolean) => {
-    if (isFeedbackMode) return; // Disable selection in feedback mode
-    
-    if (checked) {
-      const allFlowIds = new Set<string>();
-      Object.values(search_results).forEach(material => {
-        material.flows.forEach(flow => allFlowIds.add(flow.flow_id));
-      });
-      setSelectedFlows(allFlowIds);
-    } else {
-      setSelectedFlows(new Set());
-    }
-  };
-
   // Handle individual flow selection
-  const handleFlowSelect = (flowId: string, checked: boolean) => {
-    if (isFeedbackMode) return; // Disable selection in feedback mode
-    
+  const handleFlowSelect = (flowId: string, checked: boolean) => {    
     const newSelected = new Set(selectedFlows);
     if (checked) {
       newSelected.add(flowId);
@@ -92,18 +72,6 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
       newSelected.delete(flowId);
     }
     setSelectedFlows(newSelected);
-  };
-
-  // Handle switching to selection mode
-  const handleSwitchToSelectionMode = () => {
-    setIsFeedbackMode(false);
-    setFeedback(""); // Clear feedback when switching to selection mode
-  };
-
-  // Handle switching to feedback mode
-  const handleSwitchToFeedbackMode = () => {
-    setIsFeedbackMode(true);
-    setSelectedFlows(new Set()); // Clear selections when switching to feedback mode
   };
 
   // Handle material group expansion
@@ -126,6 +94,17 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
       newExpanded.add(flowId);
     }
     setExpandedFlows(newExpanded);
+  };
+
+  // Handle documentation expansion
+  const toggleDocumentationExpansion = (docKey: string) => {
+    const newExpanded = new Set(expandedDocumentation);
+    if (newExpanded.has(docKey)) {
+      newExpanded.delete(docKey);
+    } else {
+      newExpanded.add(docKey);
+    }
+    setExpandedDocumentation(newExpanded);
   };
 
   // Handle adding selected flows
@@ -176,35 +155,6 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
     }
   };
 
-  // Handle refining search
-  const handleRefineSearch = async () => {
-    if (!feedback.trim()) {
-      toast.error("Please provide feedback for refining the search");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const userMessage = `Call search_exchanges_for_product_system tool to refine the search with this feedback: ${feedback}`;
-      
-      stream.submit(
-        { messages: [{ type: "human", content: userMessage }] },
-        {
-          streamMode: ["values"],
-          streamSubgraphs: true,
-          streamResumable: true,
-        }
-      );
-      
-      toast.success("Refining search...");
-    } catch (error) {
-      console.error("Error refining search:", error);
-      toast.error("Failed to refine search. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   // Handle back to chat
   const handleBackToChat = () => {
     // This will just let the user continue with normal chat
@@ -217,72 +167,19 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
     Object.values(search_results).forEach(material => {
       material.flows.forEach(flow => allFlowIds.add(flow.flow_id));
     });
-    
-    if (selectedFlows.size === 0) {
-      setSelectAllChecked(false);
-    } else if (selectedFlows.size === allFlowIds.size) {
-      setSelectAllChecked(true);
-    } else {
-      setSelectAllChecked('indeterminate');
-    }
   }, [selectedFlows, search_results]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <Card>
-        <CardHeader className="bg-purple-50/50 border-purple-200">
+        <CardHeader>
           <CardTitle className="flex items-center gap-2 text-purple-900">
             <Database className="h-5 w-5 text-purple-600" />
             Exchange Search Results
           </CardTitle>
           <p className="text-sm text-purple-700">{message}</p>
-          <p className="text-sm text-purple-600">Found {total_flows_found} flows across {materialNames.length} material(s)</p>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Mode Selection and Select All */}
-          <div className="space-y-3 border-b pb-4">
-            {/* Mode Selection Buttons */}
-            <div className="flex items-center space-x-2">
-              <Button
-                variant={!isFeedbackMode ? "default" : "outline"}
-                size="sm"
-                onClick={handleSwitchToSelectionMode}
-                disabled={isSubmitting}
-              >
-                Select Exchanges
-              </Button>
-              <Button
-                variant={isFeedbackMode ? "default" : "outline"}
-                size="sm"
-                onClick={handleSwitchToFeedbackMode}
-                disabled={isSubmitting}
-              >
-                Refine Search
-              </Button>
-            </div>
-            
-            {/* Select All - only show in selection mode */}
-            {!isFeedbackMode && (
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  checked={selectAllChecked}
-                  onCheckedChange={handleSelectAll}
-                />
-                <label className="text-sm font-medium">
-                  Select All ({selectedFlows.size} selected)
-                </label>
-              </div>
-            )}
-            
-            {/* Mode indicator */}
-            <div className="text-xs text-gray-500">
-              {isFeedbackMode 
-                ? "Feedback mode: Provide feedback to refine search results" 
-                : "Selection mode: Select exchanges to add to the process"
-              }
-            </div>
-          </div>
-
           {/* Material Groups */}
           {materialNames.map((materialName) => {
             const material = search_results[materialName];
@@ -291,7 +188,7 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
             const selectedInMaterial = materialFlowIds.filter(id => selectedFlows.has(id)).length;
 
             return (
-              <div key={materialName} className={`border border-purple-200 rounded-lg bg-purple-50/30 ${isFeedbackMode ? 'opacity-60' : ''}`}>
+              <div key={materialName} className={`border border-purple-200 rounded-lg bg-purple-50/30`}>
                 <div 
                   className="flex items-center justify-between p-4 cursor-pointer hover:bg-purple-100/50 transition-colors"
                   onClick={() => toggleMaterialExpansion(materialName)}
@@ -328,12 +225,11 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
                       const isSelected = selectedFlows.has(flow.flow_id);
 
                       return (
-                        <div key={flow.flow_id} className={`border border-purple-200 rounded-lg p-3 bg-white ${isFeedbackMode ? 'opacity-60' : ''}`}>
+                        <div key={flow.flow_id} className={`border border-purple-200 rounded-lg p-3 bg-white`}>
                           <div className="flex items-start space-x-3">
                             <Checkbox
                               checked={isSelected}
                               onCheckedChange={(checked) => handleFlowSelect(flow.flow_id, checked === true)}
-                              disabled={isFeedbackMode}
                               className="data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600"
                             />
                             <div className="flex-1 min-w-0">
@@ -374,12 +270,64 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
                             <div className="mt-3 pl-6 space-y-2 text-xs text-purple-600 border-t border-purple-100 pt-3">
                               {flow.documentation.technology_description && (
                                 <div>
-                                  <strong className="text-purple-800">Technology:</strong> {flow.documentation.technology_description.substring(0, 200)}...
+                                  <div className="flex items-center justify-between">
+                                    <strong className="text-purple-800">Technology:</strong>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-purple-600 hover:text-purple-700 hover:bg-purple-100 h-auto p-1"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleDocumentationExpansion(`${flow.flow_id}-technology`);
+                                      }}
+                                    >
+                                      {expandedDocumentation.has(`${flow.flow_id}-technology`) ? (
+                                        <ChevronUp className="h-3 w-3" />
+                                      ) : (
+                                        <ChevronDown className="h-3 w-3" />
+                                      )}
+                                    </Button>
+                                  </div>
+                                  {expandedDocumentation.has(`${flow.flow_id}-technology`) ? (
+                                    <div className="mt-1 pl-2 text-purple-600">
+                                      {flow.documentation.technology_description}
+                                    </div>
+                                  ) : (
+                                    <div className="mt-1 pl-2 text-purple-600">
+                                      {flow.documentation.technology_description.substring(0, 200)}...
+                                    </div>
+                                  )}
                                 </div>
                               )}
                               {flow.documentation.intended_application && (
                                 <div>
-                                  <strong className="text-purple-800">Application:</strong> {flow.documentation.intended_application.substring(0, 200)}...
+                                  <div className="flex items-center justify-between">
+                                    <strong className="text-purple-800">Application:</strong>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-purple-600 hover:text-purple-700 hover:bg-purple-100 h-auto p-1"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleDocumentationExpansion(`${flow.flow_id}-application`);
+                                      }}
+                                    >
+                                      {expandedDocumentation.has(`${flow.flow_id}-application`) ? (
+                                        <ChevronUp className="h-3 w-3" />
+                                      ) : (
+                                        <ChevronDown className="h-3 w-3" />
+                                      )}
+                                    </Button>
+                                  </div>
+                                  {expandedDocumentation.has(`${flow.flow_id}-application`) ? (
+                                    <div className="mt-1 pl-2 text-purple-600">
+                                      {flow.documentation.intended_application}
+                                    </div>
+                                  ) : (
+                                    <div className="mt-1 pl-2 text-purple-600">
+                                      {flow.documentation.intended_application.substring(0, 200)}...
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -393,19 +341,6 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
             );
           })}
 
-          {/* Feedback Section - only show in feedback mode */}
-          {isFeedbackMode && (
-            <div className="space-y-3 pt-4 border-t">
-              <label className="text-sm font-medium">Refinement Feedback</label>
-              <Textarea
-                placeholder="Provide feedback to refine the search results..."
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                className="min-h-[80px]"
-              />
-            </div>
-          )}
-
           {/* Action Buttons */}
           <div className="flex items-center justify-between pt-4">
             <Button
@@ -417,15 +352,6 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
             </Button>
             
             <div className="flex items-center space-x-2">
-              {isFeedbackMode ? (
-                <Button
-                  onClick={handleRefineSearch}
-                  disabled={isSubmitting || !feedback.trim()}
-                  className="bg-purple-600 hover:bg-purple-700"
-                >
-                  Refine Search Only
-                </Button>
-              ) : (
                 <Button
                   onClick={handleAddSelected}
                   disabled={isSubmitting || selectedFlows.size === 0}
@@ -433,7 +359,6 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
                 >
                   Add Selected Exchanges ({selectedFlows.size})
                 </Button>
-              )}
             </div>
           </div>
         </CardContent>

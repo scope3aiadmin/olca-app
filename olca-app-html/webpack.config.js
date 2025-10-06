@@ -29,6 +29,7 @@ const config = {
     home: './src/home/home.tsx',
     report: './src/report/report.tsx',
     agent: './src/agent/agent.tsx',
+    preview: './src/preview/preview.tsx',
   },
   module: {
     rules: [

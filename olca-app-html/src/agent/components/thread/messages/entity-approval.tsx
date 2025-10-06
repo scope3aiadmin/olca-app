@@ -338,23 +338,24 @@ export function EntityApproval({ content, toolCallId, toolName }: EntityApproval
     }
   };
 
+  // Handle back to chat
+  const handleBackToChat = () => {
+    // This will just let the user continue with normal chat
+    toast.info("You can now continue with normal chat");
+  };
+
   return (
-    <Card className={`${theme.card}`}>
+    <Card className={`bg-white`}>
       <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <AlertTriangle className={`h-5 w-5 ${theme.icon}`} />
-          <CardTitle className={theme.text}>
-            {getEntityTypeDisplay()} Approval Required
+      <CardTitle className={`flex items-center gap-2 ${theme.text}`}>
+            Approval Required
           </CardTitle>
-        </div>
-        <CardDescription className={theme.textSecondary}>
-          {message || `Ready to ${action} ${getEntityTypeDisplay().toLowerCase()}`}
-        </CardDescription>
+          <p className="text-sm text-purple-700">{message}</p>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent className={`${theme.card} space-y-4 bg-white`}>
         {/* Entity Summary */}
-        <div className={`bg-white p-4 rounded-lg border ${theme.border}`}>
+        <div className={`p-4 rounded-lg border ${theme.border}`}>
           <div className="flex items-start gap-3">
             {getEntityIcon()}
             <div className="flex-1">
@@ -370,7 +371,6 @@ export function EntityApproval({ content, toolCallId, toolName }: EntityApproval
               {/* What will be created */}
               {willCreate.length > 0 && (
                 <div className="mb-3">
-                  <h5 className={`font-medium ${theme.text} mb-2`}>Will Create:</h5>
                   <ul className="list-disc list-inside space-y-1 text-sm">
                     {willCreate.map((item: string, index: number) => (
                       <li key={index} className={theme.textSecondary}>{item}</li>
@@ -445,117 +445,31 @@ export function EntityApproval({ content, toolCallId, toolName }: EntityApproval
           </div>
         </div>
 
-        {/* Approval Question */}
-        <div className={`bg-white p-4 rounded-lg border ${theme.border}`}>
-          <h4 className={`font-semibold ${theme.text} mb-3`}>
-            Do you want to {action} this {getEntityTypeDisplay().toLowerCase()}?
-          </h4>
-          
-          {/* Options */}
-          <div className="space-y-3">
-            <div
-              className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                selectedOption === "approve"
-                  ? "border-green-500 bg-green-50 ring-2 ring-green-200"
-                  : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
-              }`}
-              onClick={() => setSelectedOption("approve")}
+        {/* Action Buttons */}
+        <div className="flex items-center justify-between pt-4">
+            <Button
+              variant="outline"
+              onClick={handleBackToChat}
+              disabled={isSubmitting}
             >
-              <div className="flex items-start gap-3">
-                <div className={`mt-1 h-4 w-4 rounded-full border-2 flex items-center justify-center ${
-                  selectedOption === "approve"
-                    ? "border-green-500 bg-green-500"
-                    : "border-gray-300"
-                }`}>
-                  {selectedOption === "approve" && (
-                    <div className="h-2 w-2 rounded-full bg-white" />
-                  )}
-                </div>
-                <div className="flex-1">
-                  <div className={`font-medium ${
-                    selectedOption === "approve"
-                      ? "text-green-900"
-                      : "text-gray-900"
-                  }`}>
-                    Approve
-                  </div>
-                  <div className={`text-sm mt-1 ${
-                    selectedOption === "approve"
-                      ? "text-green-700"
-                      : "text-gray-600"
-                  }`}>
-                    Yes, {action} the {getEntityTypeDisplay().toLowerCase()}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div
-              className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                selectedOption === "reject"
-                  ? "border-red-500 bg-red-50 ring-2 ring-red-200"
-                  : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
-              }`}
-              onClick={() => setSelectedOption("reject")}
+              Back to Chat
+            </Button>
+            
+            <Button
+              onClick={handleSubmit}
+              disabled={
+                isSubmitting || 
+                !selectedOption || 
+                (selectedOption === "reject" && !additionalNotes.trim())
+              }
+              className={`min-w-[120px] bg-blue-600 hover:bg-blue-700`}
             >
-              <div className="flex items-start gap-3">
-                <div className={`mt-1 h-4 w-4 rounded-full border-2 flex items-center justify-center ${
-                  selectedOption === "reject"
-                    ? "border-red-500 bg-red-500"
-                    : "border-gray-300"
-                }`}>
-                  {selectedOption === "reject" && (
-                    <div className="h-2 w-2 rounded-full bg-white" />
-                  )}
-                </div>
-                <div className="flex-1">
-                  <div className={`font-medium ${
-                    selectedOption === "reject"
-                      ? "text-red-900"
-                      : "text-gray-900"
-                  }`}>
-                    Reject
-                  </div>
-                  <div className={`text-sm mt-1 ${
-                    selectedOption === "reject"
-                      ? "text-red-700"
-                      : "text-gray-600"
-                  }`}>
-                    No, do not {action} the {getEntityTypeDisplay().toLowerCase()}
-                  </div>
-                </div>
-              </div>
-            </div>
+              {isSubmitting 
+                ? "Submitting..." 
+                : "Approve"
+              }
+            </Button>
           </div>
-        </div>
-
-        {/* Submit Button */}
-        <div className="flex justify-end pt-4 border-t">
-          <Button
-            onClick={handleSubmit}
-            disabled={
-              isSubmitting || 
-              !selectedOption || 
-              (selectedOption === "reject" && !additionalNotes.trim())
-            }
-            className={`min-w-[120px] ${
-              selectedOption === "approve"
-                ? "bg-green-600 hover:bg-green-700"
-                : selectedOption === "reject"
-                ? "bg-red-600 hover:bg-red-700"
-                : ""
-            }`}
-          >
-            {isSubmitting 
-              ? "Submitting..." 
-              : selectedOption === "approve" 
-                ? `Approve ${getEntityTypeDisplay()}` 
-                : selectedOption === "reject"
-                ? `Reject ${getEntityTypeDisplay()}`
-                : "Submit Response"
-            }
-          </Button>
-        </div>
       </CardContent>
     </Card>
   );

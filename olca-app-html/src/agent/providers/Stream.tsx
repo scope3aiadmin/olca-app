@@ -24,6 +24,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { getApiKey } from "@/lib/api-key";
 import { useThreads } from "./Thread";
 import { toast } from "sonner";
+import { useMockStreamContext } from "../../preview/providers/MockStreamContext";
 
 export type StateType = { 
   messages: Message[]; 
@@ -287,7 +288,8 @@ export const StreamProvider: React.FC<{ children: ReactNode }> = ({
 export const useStreamContext = (): StreamContextType => {
   const context = useContext(StreamContext);
   if (context === undefined) {
-    throw new Error("useStreamContext must be used within a StreamProvider");
+    // ugly hack to get the preview components to work
+    return useMockStreamContext();
   }
   return context;
 };

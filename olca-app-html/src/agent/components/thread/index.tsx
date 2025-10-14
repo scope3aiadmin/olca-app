@@ -22,6 +22,7 @@ import {
   SquarePen,
   XIcon,
   Plus,
+  Bug,
 } from "lucide-react";
 import { useQueryState, parseAsBoolean } from "@/hooks/useURLState";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
@@ -94,6 +95,7 @@ export function Thread() {
     "hideToolCalls",
     parseAsBoolean.withDefault(false),
   );
+  const [debugPanelOpen, setDebugPanelOpen] = useState(false);
   const [input, setInput] = useState("");
   const {
     contentBlocks,
@@ -234,11 +236,11 @@ export function Thread() {
   );
 
   return (
-    <div className="flex h-screen w-full overflow-hidden">
+    <div className="flex h-screen w-full overflow-hidden bg-white dark:bg-gray-900">
       {isLargeScreen && (
         <div className="relative">
           <motion.div
-            className="absolute z-20 h-full overflow-hidden border-r bg-white"
+            className="absolute z-20 h-full overflow-hidden border-r bg-white dark:bg-gray-900"
             style={{ width: 300 }}
             animate={{ x: chatHistoryOpen ? 0 : -300 }}
             initial={{ x: -300 }}
@@ -331,7 +333,7 @@ export function Thread() {
                     width={32}
                     height={32}
                   />
-                  <span className="text-xl font-semibold tracking-tight">
+                  <span className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
                     Agent Chat
                   </span>
                 </motion.button>
@@ -346,6 +348,15 @@ export function Thread() {
                   onClick={() => setThreadId(null)}
                 >
                   <SquarePen className="size-5" />
+                </TooltipIconButton>
+                <TooltipIconButton
+                  size="lg"
+                  className="p-4"
+                  tooltip="Debug Panel"
+                  variant="ghost"
+                  onClick={() => setDebugPanelOpen(!debugPanelOpen)}
+                >
+                  <Bug className="size-5" />
                 </TooltipIconButton>
               </div>
 
@@ -404,11 +415,11 @@ export function Thread() {
                 </>
               }
               footer={
-                <div className="sticky bottom-0 flex flex-col items-center gap-8 bg-white">
+                <div className="sticky bottom-0 flex flex-col items-center gap-8 bg-white dark:bg-gray-900">
                   {!chatStarted && (
                     <div className="flex items-center gap-3">
                       <OpenLCALogoSVG className="h-8 flex-shrink-0" />
-                      <h1 className="text-2xl font-semibold tracking-tight">
+                      <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
                         Agent Chat
                       </h1>
                     </div>
@@ -451,7 +462,7 @@ export function Thread() {
                           }
                         }}
                         placeholder="Type your message..."
-                        className="field-sizing-content resize-none border-none bg-transparent p-3.5 pb-0 shadow-none ring-0 outline-none focus:ring-0 focus:outline-none"
+                        className="field-sizing-content resize-none border-none bg-transparent p-3.5 pb-0 shadow-none ring-0 outline-none focus:ring-0 focus:outline-none placeholder:text-gray-500 dark:placeholder:text-gray-400"
                       />
 
                       <div className="flex items-center gap-6 p-2 pt-4">
@@ -464,7 +475,7 @@ export function Thread() {
                             />
                             <Label
                               htmlFor="render-tool-calls"
-                              className="text-sm text-gray-600"
+                              className="text-sm text-gray-600 dark:text-gray-300"
                             >
                               Hide Tool Calls
                             </Label>
@@ -474,8 +485,8 @@ export function Thread() {
                           htmlFor="file-input"
                           className="flex cursor-pointer items-center gap-2"
                         >
-                          <Plus className="size-5 text-gray-600" />
-                          <span className="text-sm text-gray-600">
+                          <Plus className="size-5 text-gray-600 dark:text-gray-300" />
+                          <span className="text-sm text-gray-600 dark:text-gray-300">
                             Upload PDF or Image
                           </span>
                         </Label>
@@ -536,10 +547,13 @@ export function Thread() {
       </div>
 
       {/* Debug Panel for easy log access */}
-      <DebugPanel 
-        messages={messages}
-        threadId={threadId || undefined}
-      />
+      {debugPanelOpen && (
+        <DebugPanel 
+          messages={messages}
+          threadId={threadId || undefined}
+          onClose={() => setDebugPanelOpen(false)}
+        />
+      )}
     </div>
   );
 }

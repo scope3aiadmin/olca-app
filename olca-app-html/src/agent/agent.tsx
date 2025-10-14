@@ -45,7 +45,11 @@ declare global {
 // Expose theme function for Java integration
 // This allows the Java app to control light/dark mode and opens the door for HTML <-> Java communication
 window.setTheme = (isDark: boolean) => {
-  document.body.className = isDark ? 'dark' : 'light';
+  if (isDark) {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
 };
 
 // Initialize when DOM is ready

@@ -7,6 +7,7 @@ module.exports = {
     "./src/agent/**/*.{js,jsx,ts,tsx}",
     "./src/agent/components/**/*.{js,jsx,ts,tsx}",
   ],
+  darkMode: 'class',
   theme: {
     extend: {},
   },

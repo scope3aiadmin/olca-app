@@ -14,6 +14,7 @@ import { ThreadView } from "../agent-inbox";
 import { GenericInterruptView } from "./generic-interrupt";
 import { EntityApproval } from "./entity-approval";
 import { useArtifact } from "../artifact";
+import { ExchangeSearchResults } from "./exchange-search-results";
 
 // Function to detect our custom approval interrupt format
 function isCustomApprovalInterrupt(value: unknown): boolean {
@@ -51,6 +52,19 @@ function isProductSystemCreationInterrupt(value: unknown): boolean {
     obj.entity_type === "product_system" &&
     "entity_summary" in obj &&
     "action" in obj
+  );
+}
+
+function isExchangeBatchInterrupt(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const obj = value as Record<string, any>;
+  return (
+    "status" in obj &&
+    obj.status === "search_complete" &&
+    "search_results" in obj &&
+    obj.search_results &&
+    typeof obj.search_results === "object" &&
+    Object.keys(obj.search_results).length > 0
   );
 }
 
@@ -131,11 +145,20 @@ function Interrupt({
             toolName=""
           />
         )}
+      {isExchangeBatchInterrupt(interruptValue) &&
+        (isLastMessage || hasNoAIOrToolMessages) && (
+          <ExchangeSearchResults
+            content={interruptValue as any}
+            toolCallId=""
+            toolName=""
+          />
+        )}
       {interruptValue &&
       !isAgentInboxInterruptSchema(interruptValue) &&
       !isCustomApprovalInterrupt(interruptValue) &&
       !isFoundationApprovalInterrupt(interruptValue) &&
       !isProductSystemCreationInterrupt(interruptValue) &&
+      !isExchangeBatchInterrupt(interruptValue) &&
       (isLastMessage || hasNoAIOrToolMessages) ? (
         <GenericInterruptView interrupt={interruptValue} />
       ) : null}
@@ -264,10 +287,10 @@ export function AssistantMessage({
 export function AssistantMessageLoading() {
   return (
     <div className="mr-auto flex items-start gap-2">
-      <div className="bg-muted flex h-8 items-center gap-1 rounded-2xl px-4 py-2">
-        <div className="bg-foreground/50 h-1.5 w-1.5 animate-[pulse_1.5s_ease-in-out_infinite] rounded-full"></div>
-        <div className="bg-foreground/50 h-1.5 w-1.5 animate-[pulse_1.5s_ease-in-out_0.5s_infinite] rounded-full"></div>
-        <div className="bg-foreground/50 h-1.5 w-1.5 animate-[pulse_1.5s_ease-in-out_1s_infinite] rounded-full"></div>
+      <div className="bg-muted dark:bg-gray-800 flex h-8 items-center gap-1 rounded-2xl px-4 py-2">
+        <div className="bg-foreground/50 dark:bg-gray-300 h-1.5 w-1.5 animate-[pulse_1.5s_ease-in-out_infinite] rounded-full"></div>
+        <div className="bg-foreground/50 dark:bg-gray-300 h-1.5 w-1.5 animate-[pulse_1.5s_ease-in-out_0.5s_infinite] rounded-full"></div>
+        <div className="bg-foreground/50 dark:bg-gray-300 h-1.5 w-1.5 animate-[pulse_1.5s_ease-in-out_1s_infinite] rounded-full"></div>
       </div>
     </div>
   );

@@ -63,11 +63,10 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
   const [expandedFlows, setExpandedFlows] = useState<Set<string>>(new Set());
   const [expandedDocumentation, setExpandedDocumentation] = useState<Set<string>>(new Set());
   const [flowDescriptions, setFlowDescriptions] = useState<Record<string, string>>({});
-  const [flowAmounts, setFlowAmounts] = useState<Record<string, number>>({});
   const [flowInputOutput, setFlowInputOutput] = useState<Record<string, 'input' | 'output'>>({});
 
   const { search_results, total_flows_found, message } = content;
-  const materialNames = Object.keys(search_results);
+  const materialNames = search_results ? Object.keys(search_results) : [];
 
   // Handle individual flow selection
   const handleFlowSelect = (flowId: string, checked: boolean) => {    
@@ -138,7 +137,7 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
 
     setIsSubmitting(true);
     try {
-      // Prepare selected exchanges data
+      // Prepare selected exchanges data in the format expected by the LangGraph tool
       const selectedExchanges = Array.from(selectedFlows).map(flowId => {
         // Find the flow data from search results
         for (const material of Object.values(search_results)) {
@@ -150,19 +149,26 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
               amount: flow.converted_amount,
               unit: flow.converted_unit,
               is_input: flowInputOutput[flowId] === 'input' || flow.material_type === 'input',
-              description: flowDescriptions[flowId] || ''
+              description: flowDescriptions[flowId] || '',
+              is_quantitative_reference: false, // Default to false, can be made configurable later
+              default_provider_process_id: null as null
             };
           }
         }
         return null;
       }).filter(Boolean);
 
-      // Call add_exchanges_to_process with skip_approval=True
-      const userMessage = `Call add_exchanges_to_process tool with skip_approval=True to add the selected exchanges. Selected exchanges data: ${JSON.stringify(selectedExchanges)}.`;
-      
+      // Use LangGraph Command primitive to resume the interrupted execution with selected exchanges
       stream.submit(
-        { messages: [{ type: "human", content: userMessage }] },
+        {},
         {
+          command: {
+            resume: {
+              decision: "approve",
+              reason: "User selected exchanges to add",
+              selected_exchanges: selectedExchanges
+            },
+          },
           streamMode: ["values"],
           streamSubgraphs: true,
           streamResumable: true,
@@ -193,16 +199,16 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
   }, [selectedFlows, search_results]);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <Card>
+    <div className="w-full space-y-6" style={{ width: '100%', minWidth: '100%' }}>
+      <Card className="w-full">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-purple-900">
-            <Database className="h-5 w-5 text-purple-600" />
+          <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
+            <Database className="h-5 w-5" style={{ color: '#2F6868' }} />
             Exchange Search Results
           </CardTitle>
-          <p className="text-sm text-purple-700">{message}</p>
+          <p className="text-sm text-gray-700 dark:text-gray-300">{message}</p>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 w-full">
           {/* Material Groups */}
           {materialNames.map((materialName) => {
             const material = search_results[materialName];
@@ -211,35 +217,35 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
             const selectedInMaterial = materialFlowIds.filter(id => selectedFlows.has(id)).length;
 
             return (
-              <div key={materialName} className={`border border-purple-200 rounded-lg bg-purple-50/30`}>
+              <div key={materialName} className={`border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 w-full`} style={{ borderColor: '#2F6868' }}>
                 <div 
-                  className="flex items-center justify-between p-4 cursor-pointer hover:bg-purple-100/50 transition-colors"
+                  className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors rounded-lg"
                   onClick={() => toggleMaterialExpansion(materialName)}
                 >
                   <div className="flex items-center space-x-3">
-                    <Badge variant="outline" className="capitalize border-purple-300 text-purple-700">
+                    <Badge variant="outline" className="capitalize border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300" style={{ borderColor: '#2F6868', color: '#2F6868' }}>
                       {material.material_type}
                     </Badge>
-                    <span className="font-medium text-purple-900">{materialName}</span>
-                    <span className="text-sm text-purple-600">
+                    <span className="font-medium text-gray-900 dark:text-white">{materialName}</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
                       ({material.flows.length} flows)
                     </span>
                     {selectedInMaterial > 0 && (
-                      <Badge variant="secondary" className="bg-purple-200 text-purple-800">
+                      <Badge variant="secondary" className="bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200" style={{ backgroundColor: '#2F6868', color: 'white' }}>
                         {selectedInMaterial} selected
                       </Badge>
                     )}
                   </div>
                   {isExpanded ? (
-                    <ChevronUp className="h-4 w-4 text-purple-600" />
+                    <ChevronUp className="h-4 w-4" style={{ color: '#2F6868' }} />
                   ) : (
-                    <ChevronDown className="h-4 w-4 text-purple-600" />
+                    <ChevronDown className="h-4 w-4" style={{ color: '#2F6868' }} />
                   )}
                 </div>
 
                 {isExpanded && (
-                  <div className="border-t border-purple-200 p-4 space-y-3">
-                    <p className="text-sm text-purple-700 mb-3">
+                  <div className="border-t border-gray-200 dark:border-gray-600 p-4 space-y-3 w-full">
+                    <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
                       {material.original_description}
                     </p>
                     
@@ -248,23 +254,24 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
                       const isSelected = selectedFlows.has(flow.flow_id);
 
                       return (
-                        <div key={flow.flow_id} className={`border border-purple-200 rounded-lg p-3 bg-white`}>
+                        <div key={flow.flow_id} className={`border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-white dark:bg-gray-800 w-full`} style={{ borderColor: '#2F6868' }}>
                           <div className="flex items-start space-x-3">
                             <Checkbox
                               checked={isSelected}
                               onCheckedChange={(checked) => handleFlowSelect(flow.flow_id, checked === true)}
-                              className="data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600"
+                              className="data-[state=checked]:bg-brand data-[state=checked]:border-brand data-[state=unchecked]:border-gray-400 dark:data-[state=unchecked]:border-gray-500 data-[state=unchecked]:bg-white dark:data-[state=unchecked]:bg-gray-700"
                             />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                  <h4 className="font-medium text-sm text-purple-900">{flow.flow_name}</h4>
-                                  <h3 className="text-xs text-purple-500">ID: {flow.flow_id}</h3>
+                                  <h4 className="font-medium text-sm text-gray-900 dark:text-white">{flow.flow_name}</h4>
+                                  <h3 className="text-xs text-gray-500 dark:text-gray-400">ID: {flow.flow_id}</h3>
                                 </div>
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="text-purple-600 hover:text-purple-700 hover:bg-purple-100"
+                                  className="hover:bg-gray-100 dark:hover:bg-gray-700"
+                                  style={{ color: '#2F6868' }}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     toggleFlowExpansion(flow.flow_id);
@@ -277,12 +284,12 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
                                   )}
                                 </Button>
                               </div>
-                              <p className="text-sm text-purple-700 mt-1">{flow.process_name}</p>
+                              <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">{flow.process_name}</p>
                               <div className="flex items-center gap-2 mt-2">
-                                <Badge variant="outline" className="text-xs border-purple-300 text-purple-700">
+                                <Badge variant="outline" className="text-xs border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300" style={{ borderColor: '#2F6868', color: '#2F6868' }}>
                                   {flow.converted_amount} {flow.converted_unit}
                                 </Badge>
-                                <Badge variant="outline" className="text-xs border-purple-300 text-purple-700">
+                                <Badge variant="outline" className="text-xs border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300" style={{ borderColor: '#2F6868', color: '#2F6868' }}>
                                   {flow.location}
                                 </Badge>
                               </div>
@@ -292,35 +299,35 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
                                 <div className="mt-3 space-y-3">
                                   {/* Input/Output Radio Buttons */}
                                   <div>
-                                    <label className="text-xs font-medium text-purple-800 block mb-2">
+                                    <label className="text-xs font-medium text-gray-800 dark:text-gray-200 block mb-1.5">
                                       Exchange Type:
                                     </label>
-                                    <div className="flex gap-4">
-                                      <div className="flex items-center space-x-2">
-                                        <input
+                                    <div className="flex gap-3">
+                                      <div className="flex items-center space-x-1.5">
+                                        <Input
                                           type="radio"
                                           id={`${flow.flow_id}-input`}
                                           name={`${flow.flow_id}-io`}
                                           value="input"
                                           checked={flowInputOutput[flow.flow_id] === 'input' || (!flowInputOutput[flow.flow_id] && flow.material_type === 'input')}
                                           onChange={(e) => handleInputOutputChange(flow.flow_id, e.target.value as 'input' | 'output')}
-                                          className="text-purple-600 focus:ring-purple-500"
+                                          className="h-4 w-4 text-brand focus:ring-brand focus:ring-2 focus:ring-brand/20 border-brand/30 accent-brand"
                                         />
-                                        <Label htmlFor={`${flow.flow_id}-input`} className="text-xs text-purple-700">
+                                        <Label htmlFor={`${flow.flow_id}-input`} className="text-xs text-gray-700 dark:text-gray-300">
                                           Input
                                         </Label>
                                       </div>
-                                      <div className="flex items-center space-x-2">
-                                        <input
+                                      <div className="flex items-center space-x-1.5">
+                                        <Input
                                           type="radio"
                                           id={`${flow.flow_id}-output`}
                                           name={`${flow.flow_id}-io`}
                                           value="output"
                                           checked={flowInputOutput[flow.flow_id] === 'output' || (!flowInputOutput[flow.flow_id] && flow.material_type !== 'input')}
                                           onChange={(e) => handleInputOutputChange(flow.flow_id, e.target.value as 'input' | 'output')}
-                                          className="text-purple-600 focus:ring-purple-500"
+                                          className="h-4 w-4 text-brand focus:ring-brand focus:ring-2 focus:ring-brand/20 border-brand/30 accent-brand"
                                         />
-                                        <Label htmlFor={`${flow.flow_id}-output`} className="text-xs text-purple-700">
+                                        <Label htmlFor={`${flow.flow_id}-output`} className="text-xs text-gray-700 dark:text-gray-300">
                                           Output
                                         </Label>
                                       </div>
@@ -329,14 +336,14 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
 
                                   {/* Description field */}
                                   <div>
-                                    <label className="text-xs font-medium text-purple-800 block mb-1">
+                                    <label className="text-xs font-medium text-gray-800 dark:text-gray-200 block mb-1">
                                       Description:
                                     </label>
                                     <Textarea
                                       value={flowDescriptions[flow.flow_id] || ''}
                                       onChange={(e) => handleDescriptionChange(flow.flow_id, e.target.value)}
                                       placeholder="Add a description for this exchange..."
-                                      className="text-xs min-h-[60px] border-purple-200 focus:border-purple-400"
+                                      className="text-xs min-h-[60px] border-gray-200 dark:border-gray-600 focus:border-brand dark:focus:border-brand"
                                     />
                                   </div>
                                 </div>
@@ -345,15 +352,16 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
                           </div>
 
                           {isFlowExpanded && flow.documentation && (
-                            <div className="mt-3 pl-6 space-y-2 text-xs text-purple-600 border-t border-purple-100 pt-3">
+                            <div className="mt-3 pl-6 space-y-2 text-xs text-gray-600 dark:text-gray-400 border-t border-gray-100 dark:border-gray-700 pt-3">
                               {flow.documentation.technology_description && (
                                 <div>
                                   <div className="flex items-center justify-between">
-                                    <strong className="text-purple-800">Technology:</strong>
+                                    <strong className="text-gray-800 dark:text-gray-200">Technology:</strong>
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      className="text-purple-600 hover:text-purple-700 hover:bg-purple-100 h-auto p-1"
+                                      className="hover:bg-gray-100 dark:hover:bg-gray-700 h-auto p-1"
+                                      style={{ color: '#2F6868' }}
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         toggleDocumentationExpansion(`${flow.flow_id}-technology`);
@@ -367,11 +375,11 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
                                     </Button>
                                   </div>
                                   {expandedDocumentation.has(`${flow.flow_id}-technology`) ? (
-                                    <div className="mt-1 pl-2 text-purple-600">
+                                    <div className="mt-1 pl-2 text-gray-600 dark:text-gray-400">
                                       {flow.documentation.technology_description}
                                     </div>
                                   ) : (
-                                    <div className="mt-1 pl-2 text-purple-600">
+                                    <div className="mt-1 pl-2 text-gray-600 dark:text-gray-400">
                                       {flow.documentation.technology_description.substring(0, 200)}...
                                     </div>
                                   )}
@@ -380,11 +388,12 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
                               {flow.documentation.intended_application && (
                                 <div>
                                   <div className="flex items-center justify-between">
-                                    <strong className="text-purple-800">Application:</strong>
+                                      <strong className="text-gray-800 dark:text-gray-200">Application:</strong>
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      className="text-purple-600 hover:text-purple-700 hover:bg-purple-100 h-auto p-1"
+                                      className="hover:bg-gray-100 dark:hover:bg-gray-700 h-auto p-1"
+                                      style={{ color: '#2F6868' }}
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         toggleDocumentationExpansion(`${flow.flow_id}-application`);
@@ -398,11 +407,11 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
                                     </Button>
                                   </div>
                                   {expandedDocumentation.has(`${flow.flow_id}-application`) ? (
-                                    <div className="mt-1 pl-2 text-purple-600">
+                                    <div className="mt-1 pl-2 text-gray-600 dark:text-gray-400">
                                       {flow.documentation.intended_application}
                                     </div>
                                   ) : (
-                                    <div className="mt-1 pl-2 text-purple-600">
+                                    <div className="mt-1 pl-2 text-gray-600 dark:text-gray-400">
                                       {flow.documentation.intended_application.substring(0, 200)}...
                                     </div>
                                   )}
@@ -433,7 +442,7 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
                 <Button
                   onClick={handleAddSelected}
                   disabled={isSubmitting || selectedFlows.size === 0}
-                  className="bg-purple-600 hover:bg-purple-700"
+                  variant="brand"
                 >
                   Add Selected Exchanges ({selectedFlows.size})
                 </Button>

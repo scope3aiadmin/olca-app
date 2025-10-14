@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react';
-import { Copy, Download, Eye, EyeOff } from 'lucide-react';
+import { Copy, Download, Bug, BugOff, Moon, Sun } from 'lucide-react';
 import { 
   copyLogsToClipboard, 
   createMessageChainSummary,
@@ -23,6 +23,7 @@ interface DebugPanelProps {
 export function DebugPanel({ messages = [], threadId, className = "" }: DebugPanelProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [isLoggingEnabled, setIsLoggingEnabled] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   const handleCopyLogs = async () => {
     try {
@@ -73,6 +74,16 @@ export function DebugPanel({ messages = [], threadId, className = "" }: DebugPan
     console.log(`Debug logging ${isLoggingEnabled ? 'disabled' : 'enabled'}`);
   };
 
+  const toggleTheme = () => {
+    setIsDarkMode(!isDarkMode);
+    // Apply theme to document
+    if (!isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
+
   if (!isVisible) {
     return (
       <button
@@ -80,7 +91,7 @@ export function DebugPanel({ messages = [], threadId, className = "" }: DebugPan
         className={`fixed bottom-4 right-4 z-50 bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors ${className}`}
         title="Open Debug Panel"
       >
-        <Eye className="w-5 h-5" />
+        <Bug className="w-5 h-5" />
       </button>
     );
   }
@@ -89,12 +100,21 @@ export function DebugPanel({ messages = [], threadId, className = "" }: DebugPan
     <div className={`fixed bottom-4 right-4 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-4 min-w-80 ${className}`}>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900">Debug Panel</h3>
-        <button
-          onClick={() => setIsVisible(false)}
-          className="text-gray-400 hover:text-gray-600"
-        >
-          <EyeOff className="w-5 h-5" />
-        </button>
+        <div>
+          <button
+            onClick={toggleTheme}
+            className="text-gray-400 hover:text-gray-600 mr-2"
+            title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
+          <button
+            onClick={() => setIsVisible(false)}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <BugOff className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       <div className="space-y-3">
@@ -126,7 +146,7 @@ export function DebugPanel({ messages = [], threadId, className = "" }: DebugPan
             className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
             disabled={messages.length === 0}
           >
-            <Eye className="w-4 h-4" />
+            <Bug className="w-4 h-4" />
             Log to Console
           </button>
 

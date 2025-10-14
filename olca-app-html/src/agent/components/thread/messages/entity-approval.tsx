@@ -301,19 +301,14 @@ export function EntityApproval({ content, toolCallId, toolName }: EntityApproval
   };
 
   const handleSubmit = async () => {
-    if (!selectedOption) {
-      toast.error("Please select an option");
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
       // Create the response for approval
       const response = {
-        decision: selectedOption, // "approve" or "reject"
-        reason: additionalNotes.trim() || (selectedOption === "reject" ? "User rejected the request" : "User approved the request"),
-        ...(selectedOption === "reject" && suggestions.length > 0 && { suggestions })
+        decision: "approve", // "approve" or "reject"
+        reason: additionalNotes.trim() || "User approved the request",
+        ...(suggestions.length > 0 && { suggestions })
       };
 
       // Use LangGraph Command primitive to resume the interrupted execution
@@ -329,7 +324,7 @@ export function EntityApproval({ content, toolCallId, toolName }: EntityApproval
         }
       );
 
-      const actionText = selectedOption === "approve" ? "approved" : "rejected";
+      const actionText = "approved";
       toast.success(`Request ${actionText} successfully`);
     } catch (error) {
       toast.error("Failed to submit response");
@@ -458,9 +453,7 @@ export function EntityApproval({ content, toolCallId, toolName }: EntityApproval
             <Button
               onClick={handleSubmit}
               disabled={
-                isSubmitting || 
-                !selectedOption || 
-                (selectedOption === "reject" && !additionalNotes.trim())
+                isSubmitting
               }
               className={`min-w-[120px] bg-blue-600 hover:bg-blue-700`}
             >

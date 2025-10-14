@@ -3,6 +3,9 @@ import { Button } from "../../ui/button";
 import { Checkbox } from "../../ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Badge } from "../../ui/badge";
+import { Input } from "../../ui/input";
+import { Textarea } from "../../ui/textarea";
+import { Label } from "../../ui/label";
 import { ChevronDown, ChevronUp, Database } from "lucide-react";
 import { useStreamContext } from "../../../providers/Stream";
 import { toast } from "sonner";
@@ -59,6 +62,9 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
   const [expandedMaterials, setExpandedMaterials] = useState<Set<string>>(new Set());
   const [expandedFlows, setExpandedFlows] = useState<Set<string>>(new Set());
   const [expandedDocumentation, setExpandedDocumentation] = useState<Set<string>>(new Set());
+  const [flowDescriptions, setFlowDescriptions] = useState<Record<string, string>>({});
+  const [flowAmounts, setFlowAmounts] = useState<Record<string, number>>({});
+  const [flowInputOutput, setFlowInputOutput] = useState<Record<string, 'input' | 'output'>>({});
 
   const { search_results, total_flows_found, message } = content;
   const materialNames = Object.keys(search_results);
@@ -107,6 +113,22 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
     setExpandedDocumentation(newExpanded);
   };
 
+  // Handle description update
+  const handleDescriptionChange = (flowId: string, description: string) => {
+    setFlowDescriptions(prev => ({
+      ...prev,
+      [flowId]: description
+    }));
+  };
+
+  // Handle input/output selection
+  const handleInputOutputChange = (flowId: string, value: 'input' | 'output') => {
+    setFlowInputOutput(prev => ({
+      ...prev,
+      [flowId]: value
+    }));
+  };
+
   // Handle adding selected flows
   const handleAddSelected = async () => {
     if (selectedFlows.size === 0) {
@@ -127,7 +149,8 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
               process_id: flow.process_id,
               amount: flow.converted_amount,
               unit: flow.converted_unit,
-              is_input: flow.material_type === 'input'
+              is_input: flowInputOutput[flowId] === 'input' || flow.material_type === 'input',
+              description: flowDescriptions[flowId] || ''
             };
           }
         }
@@ -234,7 +257,10 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
                             />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between">
-                                <h4 className="font-medium text-sm text-purple-900">{flow.flow_name}</h4>
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-medium text-sm text-purple-900">{flow.flow_name}</h4>
+                                  <h3 className="text-xs text-purple-500">ID: {flow.flow_id}</h3>
+                                </div>
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -254,15 +280,67 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
                               <p className="text-sm text-purple-700 mt-1">{flow.process_name}</p>
                               <div className="flex items-center gap-2 mt-2">
                                 <Badge variant="outline" className="text-xs border-purple-300 text-purple-700">
-                                  {flow.location}
-                                </Badge>
-                                <Badge variant="outline" className="text-xs border-purple-300 text-purple-700">
                                   {flow.converted_amount} {flow.converted_unit}
                                 </Badge>
-                                <span className="text-xs text-purple-500">
-                                  ID: {flow.flow_id}
-                                </span>
+                                <Badge variant="outline" className="text-xs border-purple-300 text-purple-700">
+                                  {flow.location}
+                                </Badge>
                               </div>
+                              
+                              {/* Input/Output selection and Description field - only show if flow is selected */}
+                              {isSelected && (
+                                <div className="mt-3 space-y-3">
+                                  {/* Input/Output Radio Buttons */}
+                                  <div>
+                                    <label className="text-xs font-medium text-purple-800 block mb-2">
+                                      Exchange Type:
+                                    </label>
+                                    <div className="flex gap-4">
+                                      <div className="flex items-center space-x-2">
+                                        <input
+                                          type="radio"
+                                          id={`${flow.flow_id}-input`}
+                                          name={`${flow.flow_id}-io`}
+                                          value="input"
+                                          checked={flowInputOutput[flow.flow_id] === 'input' || (!flowInputOutput[flow.flow_id] && flow.material_type === 'input')}
+                                          onChange={(e) => handleInputOutputChange(flow.flow_id, e.target.value as 'input' | 'output')}
+                                          className="text-purple-600 focus:ring-purple-500"
+                                        />
+                                        <Label htmlFor={`${flow.flow_id}-input`} className="text-xs text-purple-700">
+                                          Input
+                                        </Label>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <input
+                                          type="radio"
+                                          id={`${flow.flow_id}-output`}
+                                          name={`${flow.flow_id}-io`}
+                                          value="output"
+                                          checked={flowInputOutput[flow.flow_id] === 'output' || (!flowInputOutput[flow.flow_id] && flow.material_type !== 'input')}
+                                          onChange={(e) => handleInputOutputChange(flow.flow_id, e.target.value as 'input' | 'output')}
+                                          className="text-purple-600 focus:ring-purple-500"
+                                        />
+                                        <Label htmlFor={`${flow.flow_id}-output`} className="text-xs text-purple-700">
+                                          Output
+                                        </Label>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Description field */}
+                                  <div>
+                                    <label className="text-xs font-medium text-purple-800 block mb-1">
+                                      Description:
+                                    </label>
+                                    <Textarea
+                                      value={flowDescriptions[flow.flow_id] || ''}
+                                      onChange={(e) => handleDescriptionChange(flow.flow_id, e.target.value)}
+                                      placeholder="Add a description for this exchange..."
+                                      className="text-xs min-h-[60px] border-purple-200 focus:border-purple-400"
+                                    />
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
 

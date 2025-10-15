@@ -1,5 +1,6 @@
 const CopyPlugin = require('copy-webpack-plugin');
 const ZipPlugin = require('zip-webpack-plugin');
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const webpack = require('webpack');
 const path = require('path');
 const fs = require('fs');
@@ -41,7 +42,7 @@ const config = {
       {
         test: /\.css$/,
         use: [
-          'style-loader',
+          MiniCssExtractPlugin.loader,
           'css-loader',
           'postcss-loader'
         ],
@@ -64,6 +65,9 @@ const config = {
   },
   plugins: [
     new CleanWorkspaceHtmlPlugin(),
+    new MiniCssExtractPlugin({
+      filename: '[name].css',
+    }),
     new webpack.DefinePlugin({
       'process.env.REACT_APP_LANGGRAPH_URL': JSON.stringify(process.env.REACT_APP_LANGGRAPH_URL || 'http://localhost:8000'),
       'process.env.REACT_APP_LANGGRAPH_API_KEY': JSON.stringify(process.env.REACT_APP_LANGGRAPH_API_KEY || ''),

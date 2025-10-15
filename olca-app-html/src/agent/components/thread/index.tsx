@@ -301,33 +301,23 @@ export function Thread() {
           )}
           {chatStarted && (
             <div className="relative z-10 flex items-center justify-between gap-3 p-2">
-              <div className="relative flex items-center justify-start gap-2">
-                <div className="absolute left-0 z-10">
-                  {(isLargeScreen || !chatHistoryOpen) && (
-                    <Button
-                      className="hover:bg-gray-100"
-                      variant="ghost"
-                      onClick={() => setChatHistoryOpen(!chatHistoryOpen)}
-                    >
-                      {chatHistoryOpen ? (
-                        <PanelRightOpen className="size-5" />
-                      ) : (
-                        <PanelRightClose className="size-5" />
-                      )}
-                    </Button>
-                  )}
-                </div>
+              <div className="flex items-center gap-2">
+                {(isLargeScreen || !chatHistoryOpen) && (
+                  <Button
+                    className="hover:bg-gray-100"
+                    variant="ghost"
+                    onClick={() => setChatHistoryOpen(!chatHistoryOpen)}
+                  >
+                    {chatHistoryOpen ? (
+                      <PanelRightOpen className="size-5" />
+                    ) : (
+                      <PanelRightClose className="size-5" />
+                    )}
+                  </Button>
+                )}
                 <motion.button
                   className="flex cursor-pointer items-center gap-2"
                   onClick={() => setThreadId(null)}
-                  animate={{
-                    marginLeft: isLargeScreen ? 48 : 0,
-                  }}
-                  transition={{
-                    type: "spring",
-                    stiffness: 300,
-                    damping: 30,
-                  }}
                 >
                   <OpenLCALogoSVG
                     width={32}
@@ -472,6 +462,7 @@ export function Thread() {
                               id="render-tool-calls"
                               checked={hideToolCalls ?? false}
                               onCheckedChange={setHideToolCalls}
+                              className="data-[state=unchecked]:bg-gray-600 dark:data-[state=checked]:bg-gray-400"
                             />
                             <Label
                               htmlFor="render-tool-calls"

@@ -583,8 +583,8 @@ export function ToolResult({ message }: { message: ToolMessage }) {
                     'none') as 'approval' | 'foundation_approval' | 'exchange_search' | 'exchange_addition' | 'error' | 'none'
     });
 
-    // Trigger navigator refresh after tool call completion
-    if (window.refreshNavigator) {
+    // Trigger navigator refresh only after product_system_foundation tool call
+    if (message.name === 'product_system_foundation' && window.refreshNavigator) {
       try {
         window.refreshNavigator();
       } catch (error) {

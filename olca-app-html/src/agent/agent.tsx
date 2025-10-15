@@ -39,6 +39,8 @@ const initializeApp = () => {
 declare global {
   interface Window {
     setTheme: (isDark: boolean) => void;
+    refreshNavigator: () => void;
+    _onRefreshNavigator: () => void;
   }
 }
 
@@ -49,6 +51,20 @@ window.setTheme = (isDark: boolean) => {
     document.documentElement.classList.add('dark');
   } else {
     document.documentElement.classList.remove('dark');
+  }
+};
+
+// Expose navigator refresh function for Java integration
+// This allows the HTML side to trigger navigator refresh after tool calls
+window.refreshNavigator = () => {
+  try {
+    // Call the Java-bound function to trigger navigator refresh
+    if (window._onRefreshNavigator) {
+      window._onRefreshNavigator();
+    }
+    // Silently continue if Java integration is not available
+  } catch (error) {
+    console.error('Failed to trigger navigator refresh:', error);
   }
 };
 

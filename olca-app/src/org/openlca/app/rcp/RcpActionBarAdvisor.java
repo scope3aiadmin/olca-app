@@ -252,7 +252,7 @@ public class RcpActionBarAdvisor extends ActionBarAdvisor {
 		devMenu.add(Actions.create("SQL", Icon.SQL.descriptor(), SqlEditor::open));
 		devMenu.add(Actions.create(M.Console, Icon.CONSOLE.descriptor(), Console::show));
 		devMenu.add(Actions.create(M.Python, Icon.PYTHON.descriptor(), PythonEditor::open));
-		devMenu.add(Actions.create("Agent", Icon.PYTHON.descriptor(), AgentEditor::open));
+		devMenu.add(Actions.create("Agent", Icon.MAP.descriptor(), AgentEditor::open));
 		devMenu.add(Actions.create(M.IpcServer, Icon.IPC.descriptor(), IpcDialog::show));
 	}
 

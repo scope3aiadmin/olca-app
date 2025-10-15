@@ -583,6 +583,15 @@ export function ToolResult({ message }: { message: ToolMessage }) {
                     'none') as 'approval' | 'foundation_approval' | 'exchange_search' | 'exchange_addition' | 'error' | 'none'
     });
 
+    // Trigger navigator refresh after tool call completion
+    if (window.refreshNavigator) {
+      try {
+        window.refreshNavigator();
+      } catch (error) {
+        console.error('Failed to trigger navigator refresh:', error);
+      }
+    }
+
   }, [message, logMessage, isJsonContent, parsedContent, hasApproval, hasFoundationApproval, hasExchangeSearch, hasExchangeAddition, hasError]);
 
   // Handle foundation approval requests

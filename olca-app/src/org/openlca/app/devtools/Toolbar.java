@@ -18,6 +18,6 @@ public class Toolbar extends EditorActionBarContributor {
 				return;
 			editor.eval();
 		}));
-		manager.add(Actions.create("Agent", Icon.PYTHON.descriptor(), AgentEditor::open));
+		manager.add(Actions.create("Agent", Icon.MAP.descriptor(), AgentEditor::open));
 	}
 }

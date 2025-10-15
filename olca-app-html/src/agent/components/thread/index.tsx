@@ -22,7 +22,7 @@ import {
   SquarePen,
   XIcon,
   Plus,
-  Bug,
+  Settings,
 } from "lucide-react";
 import { useQueryState, parseAsBoolean } from "@/hooks/useURLState";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
@@ -335,7 +335,7 @@ export function Thread() {
                   className="p-4"
                   tooltip="New thread"
                   variant="ghost"
-                  onClick={() => setThreadId(null)}
+                  onClick={() => window.location.href = 'agent.html'}
                 >
                   <SquarePen className="size-5" />
                 </TooltipIconButton>
@@ -346,7 +346,7 @@ export function Thread() {
                   variant="ghost"
                   onClick={() => setDebugPanelOpen(!debugPanelOpen)}
                 >
-                  <Bug className="size-5" />
+                  <Settings className="size-5" />
                 </TooltipIconButton>
               </div>
 

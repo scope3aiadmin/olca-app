@@ -10,7 +10,6 @@ import {
   Info,
   Database,
   Settings,
-  Package,
   User,
   MapPin,
   Sliders
@@ -36,7 +35,6 @@ export function EntityApproval({ content, toolCallId, toolName }: EntityApproval
   const impact = approvalRequest?.impact || content?.impact;
   const message = approvalRequest?.message || content?.message;
   const entityDetails = approvalRequest?.entity_details || content?.entity_details;
-  const action = approvalRequest?.action || content?.action || "create";
   const entityData = approvalRequest?.entity_data || content?.entity_data;
   const willCreate = approvalRequest?.entity_details?.will_create || [];
 
@@ -59,11 +57,11 @@ export function EntityApproval({ content, toolCallId, toolName }: EntityApproval
     switch (entityType.toLowerCase()) {
       case "product_system":
       case "product_system_foundation":
-        return <Package className="h-5 w-5" style={{ color: '#2F6868' }} />;
+        return <img src="images/product_system.png" alt="Product System" className="h-5 w-5 object-contain" />;
       case "process":
-        return <Settings className="h-5 w-5" style={{ color: '#2F6868' }} />;
+        return <img src="images/process_unit_prod.png" alt="Settings" className="h-5 w-5 object-contain" />;
       case "flow":
-        return <Database className="h-5 w-5" style={{ color: '#2F6868' }} />;
+        return <img src="images/flow_product.png" alt="Database" className="h-5 w-5 object-contain" />;
       case "actor":
         return <User className="h-5 w-5" style={{ color: '#2F6868' }} />;
       case "location":
@@ -72,27 +70,6 @@ export function EntityApproval({ content, toolCallId, toolName }: EntityApproval
         return <Sliders className="h-5 w-5" style={{ color: '#2F6868' }} />;
       default:
         return <User className="h-5 w-5" style={{ color: '#2F6868' }} />;
-    }
-  };
-
-  const getEntityTypeDisplay = () => {
-    switch (entityType.toLowerCase()) {
-      case "product_system":
-        return "Product System";
-      case "product_system_foundation":
-        return "Product System Foundation";
-      case "process":
-        return "Process";
-      case "flow":
-        return "Flow";
-      case "actor":
-        return "Actor";
-      case "location":
-        return "Location";
-      case "parameter":
-        return "Parameter";
-      default:
-        return entityType;
     }
   };
 
@@ -108,8 +85,8 @@ export function EntityApproval({ content, toolCallId, toolName }: EntityApproval
         {output_product && (
           <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-600" style={{ borderColor: '#2F6868' }}>
             <div className="flex items-center gap-2 mb-3">
-              <Package className="h-4 w-4" style={{ color: '#2F6868' }} />
-              <h5 className="font-semibold text-gray-900 dark:text-white">Output Product</h5>
+              <img src="images/flow_product.png" alt="Flow" className="h-5 w-5 object-contain" />
+              <h5 className="font-semibold text-gray-900 dark:text-white">Flow</h5>
             </div>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
@@ -138,7 +115,7 @@ export function EntityApproval({ content, toolCallId, toolName }: EntityApproval
         {process && (
           <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-600" style={{ borderColor: '#2F6868' }}>
             <div className="flex items-center gap-2 mb-3">
-              <Settings className="h-4 w-4" style={{ color: '#2F6868' }} />
+              <img src="images/process_unit_prod.png" alt="Process" className="h-5 w-5 object-contain" />
               <h5 className="font-semibold text-gray-900 dark:text-white">Process</h5>
             </div>
             <div className="space-y-2 text-sm">
@@ -168,8 +145,8 @@ export function EntityApproval({ content, toolCallId, toolName }: EntityApproval
         {foundation_summary && (
           <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-600" style={{ borderColor: '#2F6868' }}>
             <div className="flex items-center gap-2 mb-3">
-              <Database className="h-4 w-4" style={{ color: '#2F6868' }} />
-              <h5 className="font-semibold text-gray-900 dark:text-white">Foundation Summary</h5>
+              <img src="images/product_system.png" alt="Product System" className="h-5 w-5 object-contain" />
+              <h5 className="font-semibold text-gray-900 dark:text-white">Product System</h5>
             </div>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">

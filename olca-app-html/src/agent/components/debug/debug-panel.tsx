@@ -154,6 +154,13 @@ export function DebugPanel({ messages = [], threadId, className = "", onClose }:
           >
             {isLoggingEnabled ? 'Disable' : 'Enable'} Debug Logging
           </Button>
+          <Button
+            onClick={() => window.refreshNavigator()}
+            variant="brand"
+            className="w-full"
+          >
+            Refresh Navigator
+          </Button>
         </div>
 
         <div className="text-xs text-gray-500 dark:text-gray-400 mt-4">

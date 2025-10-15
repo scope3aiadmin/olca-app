@@ -28,6 +28,7 @@ interface Flow {
     geography_description?: string;
     time_description?: string;
   };
+  default_provider_process_id: string | null;
 }
 
 interface MaterialGroup {
@@ -151,7 +152,7 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
               is_input: flowInputOutput[flowId] === 'input' || flow.material_type === 'input',
               description: flowDescriptions[flowId] || '',
               is_quantitative_reference: false, // Default to false, can be made configurable later
-              default_provider_process_id: null as null
+              default_provider_process_id: flow.default_provider_process_id
             };
           }
         }
@@ -259,7 +260,7 @@ export function ExchangeSearchResults({ content, toolCallId, toolName }: Exchang
                             <Checkbox
                               checked={isSelected}
                               onCheckedChange={(checked) => handleFlowSelect(flow.flow_id, checked === true)}
-                              className="data-[state=checked]:bg-brand data-[state=checked]:border-brand data-[state=unchecked]:border-gray-400 dark:data-[state=unchecked]:border-gray-500 data-[state=unchecked]:bg-white dark:data-[state=unchecked]:bg-gray-700"
+                              className="data-[state=unchecked]:border-gray-400 dark:data-[state=unchecked]:border-gray-500 data-[state=unchecked]:bg-white dark:data-[state=unchecked]:bg-gray-700"
                             />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between">

@@ -421,7 +421,7 @@ export function Thread() {
                               id="render-tool-calls"
                               checked={hideToolCalls ?? false}
                               onCheckedChange={setHideToolCalls}
-                              className="data-[state=unchecked]:bg-gray-600 dark:data-[state=checked]:bg-gray-400"
+                              className="data-[state=checked]:bg-gray-600 dark:data-[state=unchecked]:bg-gray-400"
                             />
                             <Label
                               htmlFor="render-tool-calls"

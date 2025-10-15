@@ -43,3 +43,26 @@
 .markdown-content tr:nth-child(even) {
   background-color: #f9f9f9;
 }
+
+/* Dark mode table styles */
+.dark .markdown-content tr:nth-child(even) {
+  background-color: #374151;
+}
+
+.dark .markdown-content th {
+  background-color: #1f2937;
+  color: #f9fafb;
+}
+
+.dark .markdown-content td {
+  color: #f9fafb;
+}
+
+.dark .markdown-content table {
+  border-color: #4b5563;
+}
+
+.dark .markdown-content th,
+.dark .markdown-content td {
+  border-color: #4b5563;
+}

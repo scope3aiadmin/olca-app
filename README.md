@@ -14,7 +14,9 @@ This repository has the following sub-projects:
 * [olca-app-build](./olca-app-build): contains the build scripts for compiling
   openLCA and creating the installers for Windows, Linux, and macOS.
 * [olca-app-html](./olca-app-html): contains the source code for the HTML views
-  in openLCA (like the start page or the report views).
+  in openLCA (like the start page or the report views). This includes the
+  [Agent Chat Interface](./olca-app-html/src/agent/README.md) - a sophisticated
+  conversational AI interface built with React and LangGraph integration.
 * [olca-refdata](./olca-refdata): contains the current reference data (units,
   quantities, and flows) that are packaged with openLCA.
 

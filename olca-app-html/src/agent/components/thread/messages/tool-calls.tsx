@@ -157,29 +157,29 @@ export function ToolCalls({
         return (
           <div
             key={idx}
-            className="overflow-hidden rounded-lg border border-gray-200"
+            className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
           >
-            <div className="border-b border-gray-200 bg-gray-50 px-4 py-2">
-              <h3 className="font-medium text-gray-900">
+            <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2">
+              <h3 className="font-medium text-gray-900 dark:text-white">
                 {tc.name}
                 {tc.id && (
-                  <code className="ml-2 rounded bg-gray-100 px-2 py-1 text-sm">
+                  <code className="ml-2 rounded bg-gray-100 dark:bg-gray-700 px-2 py-1 text-sm text-gray-900 dark:text-gray-100">
                     {tc.id}
                   </code>
                 )}
               </h3>
             </div>
             {hasArgs ? (
-              <table className="min-w-full divide-y divide-gray-200">
-                <tbody className="divide-y divide-gray-200">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {Object.entries(args).map(([key, value], argIdx) => (
                     <tr key={argIdx}>
-                      <td className="px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-900">
+                      <td className="px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-900 dark:text-white">
                         {key}
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-500">
+                      <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-300">
                         {isComplexValue(value) ? (
-                          <code className="rounded bg-gray-50 px-2 py-1 font-mono text-sm break-all">
+                          <code className="rounded bg-gray-50 dark:bg-gray-800 px-2 py-1 font-mono text-sm break-all text-gray-900 dark:text-gray-100">
                             {JSON.stringify(value, null, 2)}
                           </code>
                         ) : (
@@ -191,7 +191,7 @@ export function ToolCalls({
                 </tbody>
               </table>
             ) : (
-              <code className="block p-3 text-sm">{"{}"}</code>
+              <code className="block p-3 text-sm text-gray-900 dark:text-gray-100">{"{}"}</code>
             )}
           </div>
         );
@@ -583,6 +583,15 @@ export function ToolResult({ message }: { message: ToolMessage }) {
                     'none') as 'approval' | 'foundation_approval' | 'exchange_search' | 'exchange_addition' | 'error' | 'none'
     });
 
+    // Trigger navigator refresh only after product_system_foundation tool call
+    if (message.name === 'product_system_foundation' && window.refreshNavigator) {
+      try {
+        window.refreshNavigator();
+      } catch (error) {
+        console.error('Failed to trigger navigator refresh:', error);
+      }
+    }
+
   }, [message, logMessage, isJsonContent, parsedContent, hasApproval, hasFoundationApproval, hasExchangeSearch, hasExchangeAddition, hasError]);
 
   // Handle foundation approval requests
@@ -601,7 +610,7 @@ export function ToolResult({ message }: { message: ToolMessage }) {
   // Handle exchange search results
   if (hasExchangeSearch) {
     return (
-      <div className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2">
+      <div className="w-full grid grid-rows-[1fr_auto] gap-2">
         <ExchangeSearchResults 
           content={parsedContent} 
           toolCallId={getToolCallId(message)}
@@ -665,28 +674,28 @@ export function ToolResult({ message }: { message: ToolMessage }) {
 
   return (
     <div className="mx-auto grid max-w-3xl grid-rows-[1fr_auto] gap-2">
-      <div className="overflow-hidden rounded-lg border border-gray-200">
-        <div className="border-b border-gray-200 bg-gray-50 px-4 py-2">
+      <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             {message.name ? (
-              <h3 className="font-medium text-gray-900">
+              <h3 className="font-medium text-gray-900 dark:text-white">
                 Tool Result:{" "}
-                <code className="rounded bg-gray-100 px-2 py-1">
+                <code className="rounded bg-gray-100 dark:bg-gray-700 px-2 py-1 text-gray-900 dark:text-gray-100">
                   {message.name}
                 </code>
               </h3>
             ) : (
-              <h3 className="font-medium text-gray-900">Tool Result</h3>
+              <h3 className="font-medium text-gray-900 dark:text-white">Tool Result</h3>
             )}
             {message.tool_call_id && (
-              <code className="ml-2 rounded bg-gray-100 px-2 py-1 text-sm">
+              <code className="ml-2 rounded bg-gray-100 dark:bg-gray-700 px-2 py-1 text-sm text-gray-900 dark:text-gray-100">
                 {message.tool_call_id}
               </code>
             )}
           </div>
         </div>
         <motion.div
-          className="min-w-full bg-gray-100"
+          className="min-w-full bg-gray-100 dark:bg-gray-900"
           initial={false}
           animate={{ height: "auto" }}
           transition={{ duration: 0.3 }}
@@ -704,8 +713,8 @@ export function ToolResult({ message }: { message: ToolMessage }) {
                 transition={{ duration: 0.2 }}
               >
                 {isJsonContent ? (
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <tbody className="divide-y divide-gray-200">
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {(Array.isArray(parsedContent)
                         ? parsedContent
                         : Object.entries(parsedContent)
@@ -721,12 +730,12 @@ export function ToolResult({ message }: { message: ToolMessage }) {
                         
                         return (
                           <tr key={argIdx}>
-                            <td className="px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-900">
+                            <td className="px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-900 dark:text-white">
                               {key}
                             </td>
-                            <td className="px-4 py-2 text-sm text-gray-500">
+                            <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-300">
                               {isComplexValue(displayValue) ? (
-                                <code className="rounded bg-gray-50 px-2 py-1 font-mono text-sm break-all">
+                                <code className="rounded bg-gray-50 dark:bg-gray-800 px-2 py-1 font-mono text-sm break-all text-gray-900 dark:text-gray-100">
                                   {typeof displayValue === "string" ? displayValue : JSON.stringify(displayValue, null, 2)}
                                 </code>
                               ) : (
@@ -739,7 +748,7 @@ export function ToolResult({ message }: { message: ToolMessage }) {
                     </tbody>
                   </table>
                 ) : (
-                  <code className="block text-sm">{displayedContent}</code>
+                  <code className="block text-sm text-gray-900 dark:text-gray-100">{displayedContent}</code>
                 )}
               </motion.div>
             </AnimatePresence>
@@ -748,7 +757,7 @@ export function ToolResult({ message }: { message: ToolMessage }) {
             (isJsonContent && shouldTruncate)) && (
             <motion.button
               onClick={() => setIsExpanded(!isExpanded)}
-              className="flex w-full cursor-pointer items-center justify-center border-t-[1px] border-gray-200 py-2 text-gray-500 transition-all duration-200 ease-in-out hover:bg-gray-50 hover:text-gray-600"
+              className="flex w-full cursor-pointer items-center justify-center border-t-[1px] border-gray-200 dark:border-gray-700 py-2 text-gray-500 dark:text-gray-400 transition-all duration-200 ease-in-out hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-600 dark:hover:text-gray-300"
               initial={{ scale: 1 }}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}

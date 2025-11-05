@@ -24,6 +24,8 @@ class CalculationPreferences {
 	private String impactMethod;
 	private String nwSet;
 	private Integer simulationRuns;
+	private Double nearZeroThreshold;
+	private boolean withNearZeroThreshold; // Add this
 	private boolean withRegionalization;
 	private boolean withCosts;
 	private boolean withDataQuality;
@@ -51,6 +53,10 @@ class CalculationPreferences {
 			prefs.nwSet = cs.nwSet().refId;
 		}
 		cs.simulationRuns().ifPresent(i -> prefs.simulationRuns = i);
+		prefs.withNearZeroThreshold = setup.withNearZeroThreshold;
+		if (setup.withNearZeroThreshold) {
+			prefs.nearZeroThreshold = setup.nearZeroThreshold;
+		}
 
 		// data quality
 		if (setup.withDataQuality && setup.dqSetup != null) {
@@ -128,6 +134,12 @@ class CalculationPreferences {
 		cs.withRegionalization(prefs.withRegionalization);
 		cs.withCosts(prefs.withCosts);
 
+		// Apply near zero threshold checkbox state
+		setup.withNearZeroThreshold = prefs.withNearZeroThreshold;
+		if (prefs.nearZeroThreshold != null) {
+			setup.nearZeroThreshold = prefs.nearZeroThreshold;
+		}
+
 		// data quality settings
 		setup.withDataQuality = prefs.withDataQuality;
 		if (setup.dqSetup != null) {
@@ -175,6 +187,8 @@ class CalculationPreferences {
 					.withSimulationRuns(100);
 		}
 		setup.withDataQuality = false;
+		setup.withNearZeroThreshold = false; // Default: unchecked
+		setup.nearZeroThreshold = 1e-9; // Default value
 		if (setup.dqSetup != null) {
 			var dqs = setup.dqSetup;
 			dqs.aggregationType = AggregationType.WEIGHTED_AVERAGE;
@@ -195,6 +209,10 @@ class CalculationPreferences {
 		Json.put(json, "impactMethod", impactMethod);
 		Json.put(json, "nwSet", nwSet);
 		Json.put(json, "simulationRuns", simulationRuns);
+		Json.put(json, "withNearZeroThreshold", withNearZeroThreshold);
+		if (nearZeroThreshold != null) {
+			Json.put(json, "nearZeroThreshold", nearZeroThreshold);
+		}
 		Json.put(json, "processDqSystem", processDqSystem);
 		Json.put(json, "exchangeDqSystem", exchangeDqSystem);
 		Json.put(json, "dqAggregation", dqAggregation);
@@ -220,6 +238,8 @@ class CalculationPreferences {
 		prefs.impactMethod = Json.getString(obj, "impactMethod");
 		prefs.nwSet = Json.getString(obj, "nwSet");
 		Json.getInt(obj, "simulationRuns").ifPresent(i -> prefs.simulationRuns = i);
+		prefs.withNearZeroThreshold = Json.getBool(obj, "withNearZeroThreshold", false);
+		Json.getDouble(obj, "nearZeroThreshold").ifPresent(d -> prefs.nearZeroThreshold = d);
 		prefs.withRegionalization = Json.getBool(obj, "withRegionalization", false);
 		prefs.withCosts = Json.getBool(obj, "withCosts", false);
 

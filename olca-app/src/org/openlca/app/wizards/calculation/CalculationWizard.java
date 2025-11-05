@@ -128,18 +128,29 @@ public class CalculationWizard extends Wizard {
 		// for MC simulations, just open the simulation editor
 		if (setup.type == CalculationType.SIMULATION) {
 			var calcSetup = setup.calcSetup.withSimulationRuns(setup.simulationRuns);
+			// Only apply nearZeroThreshold if checkbox is checked
+			if (setup.withNearZeroThreshold) {
+				calcSetup = calcSetup.withNearZeroThreshold(setup.nearZeroThreshold);
+			}
 			SimulationEditor.open(calcSetup);
 			return;
 		}
 
 		// run the calculation
 		log.trace("run calculation");
+		var calcSetup = setup.calcSetup;
+		
+		// Only apply nearZeroThreshold if checkbox is checked
+		if (setup.withNearZeroThreshold) {
+			calcSetup = calcSetup.withNearZeroThreshold(setup.nearZeroThreshold);
+		}
+		
 		var calc = new SystemCalculator(Database.get())
 				.withSolver(App.getSolver());
 		Libraries.readersForCalculation().ifPresent(calc::withLibraries);
 		var result = setup.type == CalculationType.LAZY
-				? calc.calculateLazy(setup.calcSetup)
-				: calc.calculateEager(setup.calcSetup);
+				? calc.calculateLazy(calcSetup)
+				: calc.calculateEager(calcSetup);
 
 		var bundle = ResultBundle.of(setup.calcSetup, result);
 		if (setup.withDataQuality) {

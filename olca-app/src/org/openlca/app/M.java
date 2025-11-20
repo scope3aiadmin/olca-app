@@ -1714,7 +1714,6 @@ public class M extends NLS {
 	public static String UpdateRepositoryConnectionQuestion;
 	public static String UpdateTitle;
 	public static String Updated;
-	public static String UpdatedModel;
 	public static String UpdatingExistingData;
 	public static String UpdatingLibraryWarning;
 	public static String UpdatingLocalIndex;
@@ -1810,6 +1809,9 @@ public class M extends NLS {
 
 	// Z
 	public static String ZipCode;
+
+	public static String UseNearZeroThreshold;
+	public static String NearZeroThreshold;
 
 	private static Map<String, String> map;
 

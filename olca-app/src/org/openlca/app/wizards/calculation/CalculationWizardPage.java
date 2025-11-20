@@ -217,6 +217,47 @@ class CalculationWizardPage extends WizardPage {
 		if (setup.hasLibraries) {
 			dqCheck.setEnabled(false);
 		}
+
+		// Near zero threshold with checkbox (moved after assessDataQuality)
+		var thresholdCheck = UI.checkbox(commonOptions, M.UseNearZeroThreshold);
+		thresholdCheck.setSelection(setup.withNearZeroThreshold);
+
+		var thresholdInner = UI.composite(commonOptions);
+		UI.gridLayout(thresholdInner, 2, 10, 0);
+		var thresholdLabel = UI.label(thresholdInner, M.NearZeroThreshold);
+		UI.gridData(thresholdLabel, false, false);
+		var thresholdText = UI.text(thresholdInner, SWT.BORDER);
+		UI.gridData(thresholdText, false, false).widthHint = 120;
+
+		// Get GridData for thresholdInner and exclude it when hidden
+		var thresholdInnerData = UI.gridData(thresholdInner, true, false);
+		
+		// Set initial visibility and text
+		thresholdInner.setVisible(setup.withNearZeroThreshold);
+		if (!setup.withNearZeroThreshold) {
+			thresholdInnerData.exclude = true;
+		}
+		thresholdText.setText(Double.toString(setup.nearZeroThreshold));
+		
+		// Update checkbox handler to show/hide threshold input
+		Controls.onSelect(thresholdCheck, _e -> {
+			setup.withNearZeroThreshold = thresholdCheck.getSelection();
+			thresholdInner.setVisible(setup.withNearZeroThreshold);
+			thresholdInnerData.exclude = !setup.withNearZeroThreshold;
+			commonOptions.layout(true, true);
+		});
+
+		thresholdText.addModifyListener(_e -> {
+			if (!setup.withNearZeroThreshold) {
+				return; // Don't update if checkbox is unchecked
+			}
+			var text = thresholdText.getText();
+			try {
+				setup.nearZeroThreshold = Double.parseDouble(text);
+			} catch (Exception e) {
+				MsgBox.error(M.InvalidNumber, M.NotValidNumber + " - " + text);
+			}
+		});
 	}
 
 	private void createMonteCarloOptions(Composite parent) {
@@ -239,6 +280,40 @@ class CalculationWizardPage extends WizardPage {
 				setup.simulationRuns = Integer.parseInt(count);
 			} catch (Exception e) {
 				MsgBox.error(M.InvalidNumber, M.NotValidNumber + " - " + count);
+			}
+		});
+
+		// Near zero threshold with checkbox
+		var thresholdCheck = UI.checkbox(monteCarloOptions, M.UseNearZeroThreshold);
+		thresholdCheck.setSelection(setup.withNearZeroThreshold);
+
+		var thresholdInner = UI.composite(monteCarloOptions);
+		UI.gridLayout(thresholdInner, 2, 10, 0);
+		var thresholdLabel = UI.label(thresholdInner, M.NearZeroThreshold);
+		UI.gridData(thresholdLabel, false, false);
+		var thresholdText = UI.text(thresholdInner, SWT.BORDER);
+		UI.gridData(thresholdText, false, false).widthHint = 120;
+
+		// Set initial visibility and text
+		thresholdInner.setVisible(setup.withNearZeroThreshold);
+		thresholdText.setText(Double.toString(setup.nearZeroThreshold));
+		
+		// Update checkbox handler to show/hide threshold input
+		Controls.onSelect(thresholdCheck, _e -> {
+			setup.withNearZeroThreshold = thresholdCheck.getSelection();
+			thresholdInner.setVisible(setup.withNearZeroThreshold);
+			monteCarloOptions.layout();
+		});
+
+		thresholdText.addModifyListener(_e -> {
+			if (!setup.withNearZeroThreshold) {
+				return; // Don't update if checkbox is unchecked
+			}
+			var text = thresholdText.getText();
+			try {
+				setup.nearZeroThreshold = Double.parseDouble(text);
+			} catch (Exception e) {
+				MsgBox.error(M.InvalidNumber, M.NotValidNumber + " - " + text);
 			}
 		});
 	}

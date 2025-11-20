@@ -21,6 +21,8 @@ class Setup {
 	boolean withDataQuality;
 	CalculationType type;
 	int simulationRuns = 100;
+	boolean withNearZeroThreshold = false; // Checkbox state
+	double nearZeroThreshold = 1e-9; // Default value 10^-9
 
 	private Setup(CalculationTarget target) {
 		var system = target.isProductSystem()

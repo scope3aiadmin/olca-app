@@ -8,10 +8,12 @@ import java.util.stream.Collectors;
 
 import org.eclipse.jface.viewers.LabelProvider;
 import org.eclipse.jface.viewers.TableViewer;
+import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.ui.forms.widgets.FormToolkit;
+import org.eclipse.ui.forms.widgets.Section;
 import org.openlca.app.M;
 import org.openlca.app.components.ContributionImage;
 import org.openlca.app.components.ResultItemSelector;
@@ -43,11 +45,14 @@ class ContributionSection extends LabelProvider implements TableSection,
 	private TableViewer table;
 	private ContributionImage image;
 	private final TLongObjectHashMap<Color> colors;
+	private Section section;
 
 	private String unit;
 	private int count = 10;
 	private String query;
 	private double absMax;
+	private double[] totals = new double[0];
+	private boolean showPercentages;
 	private List<List<Contribution>> cells;
 
 	private ContributionSection(ProjectResultData data) {
@@ -62,7 +67,7 @@ class ContributionSection extends LabelProvider implements TableSection,
 
 	@Override
 	public void renderOn(Composite body, FormToolkit tk) {
-		var section = UI.section(body, tk, M.ResultContributions);
+		section = UI.section(body, tk, M.ResultContributions);
 		var comp = UI.sectionClient(section, tk, 1);
 		UI.gridLayout(comp, 1);
 
@@ -94,6 +99,15 @@ class ContributionSection extends LabelProvider implements TableSection,
 			count = Math.max(1, spinner.getSelection());
 			updateRows();
 		});
+		var percentButton = tk.createButton(configComp, "Show %", SWT.CHECK);
+		percentButton.setSelection(showPercentages);
+		UI.gridData(percentButton, false, false);
+		Controls.onSelect(percentButton, $ -> {
+			showPercentages = percentButton.getSelection();
+			updateRows();
+			updateSectionTitle();
+		});
+		UI.filler(configComp, tk);
 
 		// create the table
 		var headers = new String[variants.length];
@@ -144,13 +158,16 @@ class ContributionSection extends LabelProvider implements TableSection,
 		if (row.length <= col || row[col] == null)
 			return null;
 		var cell = row[col];
-		var result = Numbers.format(cell.amount, 2);
-		if (unit != null) {
-			result += " " + unit;
+		var result = formatValue(cell, col);
+		if (cell.isRest) {
+			return result + " | " + M.Others;
 		}
-		return result + " | " + (cell.isRest
-			? M.Others
-			: Labels.name(cell.process));
+		var category = Labels.category(cell.process);
+		var processName = Labels.name(cell.process);
+		if (category != null && !category.isEmpty()) {
+			return result + " | " + category + " | " + processName;
+		}
+		return result + " | " + processName;
 	}
 
 	@Override
@@ -207,10 +224,15 @@ class ContributionSection extends LabelProvider implements TableSection,
 			return;
 
 		double absMax = 0;
+		var totals = new double[variants.length];
 		var rows = new ArrayList<Contribution[]>();
 		for (int i = 0; i < variants.length; i++) {
+			var variantCells = cells.get(i);
+			totals[i] = variantCells.stream()
+				.mapToDouble(c -> Math.abs(c.amount))
+				.sum();
 			// select the top contributions of variant i
-			var selected = Contribution.select(cells.get(i), count, query);
+			var selected = Contribution.select(variantCells, count, query);
 
 			// fill column i in the rows with the respective contributions
 			for (int j = 0; j < selected.size(); j++) {
@@ -223,9 +245,57 @@ class ContributionSection extends LabelProvider implements TableSection,
 			}
 		}
 
+		this.totals = totals;
 		this.absMax = absMax;
 		this.colors.clear();
 		table.setInput(rows);
+		updateSectionTitle();
+	}
 
+	private void updateSectionTitle() {
+		if (section == null)
+			return;
+		var title = M.ResultContributions;
+		if (showPercentages && totals != null && totals.length > 0) {
+			var totalPercents = new StringBuilder();
+			for (int i = 0; i < variants.length; i++) {
+				if (i > 0)
+					totalPercents.append(" / ");
+				var total = totals[i];
+				if (total == 0) {
+					totalPercents.append("0.00%");
+				} else {
+					var sum = 0.0;
+					if (cells != null && i < cells.size()) {
+						var selected = Contribution.select(cells.get(i), count, query);
+						for (var cell : selected) {
+							sum += Math.abs(cell.amount);
+						}
+					}
+					var percent = sum / total * 100.0;
+					totalPercents.append(String.format("%.2f%%", percent));
+				}
+			}
+			title += " (" + totalPercents + ")";
+		}
+		section.setText(title);
+	}
+
+	private String formatValue(Contribution cell, int col) {
+		if (!showPercentages) {
+			var result = Numbers.format(cell.amount, 2);
+			if (unit != null) {
+				result += " " + unit;
+			}
+			return result;
+		}
+		var total = totals != null && totals.length > col
+			? totals[col]
+			: 0;
+		if (total == 0) {
+			return String.format("%.2f%%", 0.0);
+		}
+		var percent = cell.amount / total * 100.0;
+		return String.format("%.2f%%", percent);
 	}
 }

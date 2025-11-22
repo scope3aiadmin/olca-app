@@ -163,6 +163,36 @@ public class Labels {
 				: "";
 	}
 
+	/**
+	 * Returns the tags of the given entity descriptor as an array.
+	 */
+	public static String[] tags(RootDescriptor d) {
+		if (d == null || d.type == null)
+			return new String[0];
+		var cache = AppContext.getEntityCache();
+		if (cache == null)
+			return new String[0];
+		var entity = cache.get(d.type.getModelClass(), d.id);
+		if (entity instanceof RootEntity rootEntity) {
+			if (rootEntity.tags == null || Strings.nullOrEmpty(rootEntity.tags))
+				return new String[0];
+			return java.util.Arrays.stream(rootEntity.tags.split(","))
+					.filter(tag -> !Strings.nullOrEmpty(tag))
+					.map(String::trim)
+					.toArray(String[]::new);
+		}
+		return new String[0];
+	}
+
+	/**
+	 * Returns the first tag of the given entity descriptor, or an empty string
+	 * if no tags are found.
+	 */
+	public static String tag(RootDescriptor d) {
+		var tags = tags(d);
+		return tags.length > 0 ? tags[0] : "";
+	}
+
 	public static String code(Location loc) {
 		if (loc == null)
 			return "";

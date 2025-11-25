@@ -14,9 +14,6 @@ import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.ui.forms.widgets.FormToolkit;
 import org.eclipse.ui.forms.widgets.Section;
-import java.io.File;
-
-import org.eclipse.swt.widgets.Button;
 import org.openlca.app.M;
 import org.openlca.app.components.ContributionImage;
 import org.openlca.app.components.FileChooser;
@@ -43,6 +40,11 @@ import org.openlca.core.model.descriptors.ImpactDescriptor;
 import org.openlca.core.model.descriptors.RootDescriptor;
 import org.openlca.core.results.LcaResult;
 import org.openlca.util.Strings;
+import org.openlca.io.xls.Excel;
+
+import java.io.FileOutputStream;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import gnu.trove.map.hash.TLongObjectHashMap;
 
@@ -128,7 +130,7 @@ class ContributionSection extends LabelProvider implements TableSection,
 			updateRows();
 			updateSectionTitle();
 		});
-		var excelExportButton = tk.createButton(configComp, "", SWT.PUSH);
+		var excelExportButton = tk.createButton(configComp, M.ExportToExcel, SWT.PUSH);
 		excelExportButton.setImage(Images.get(FileType.EXCEL));
 		excelExportButton.setToolTipText(M.ExportToExcel);
 		UI.gridData(excelExportButton, false, false);
@@ -419,5 +421,211 @@ class ContributionSection extends LabelProvider implements TableSection,
 		}
 		var percent = cell.amount / total * 100.0;
 		return String.format("%.2f%%", percent);
+	}
+
+	private void exportToExcel() {
+		if (data == null || data.items() == null)
+			return;
+		var file = FileChooser.forSavingFile(M.ExportProjectResult,
+				"contribution results.xlsx");
+		if (file == null)
+			return;
+		try (var wb = new XSSFWorkbook()) {
+			var bold = Excel.createBoldStyle(wb);
+			var sheet = wb.createSheet("Contributions");
+			int row = 0;
+			
+			// Header row
+			Excel.cell(sheet, row, 0, "Impact Category").ifPresent(c -> c.setCellStyle(bold));
+			Excel.cell(sheet, row, 1, "Process").ifPresent(c -> c.setCellStyle(bold));
+			Excel.cell(sheet, row, 2, "Tag").ifPresent(c -> c.setCellStyle(bold));
+			for (int i = 0; i < variants.length; i++) {
+				Excel.cell(sheet, row, i + 3, Strings.orEmpty(variants[i].name))
+					.ifPresent(c -> c.setCellStyle(bold));
+			}
+			row++;
+			
+			// Export all impact categories in one sheet
+			for (var impact : data.items().impacts()) {
+				row = exportImpactContributions(sheet, impact, row, bold);
+				// Add a blank row between impact categories for readability
+				row++;
+			}
+			
+			// Auto-size columns
+			for (int col = 0; col < variants.length + 3; col++) {
+				sheet.autoSizeColumn(col);
+			}
+			
+			try (var out = new FileOutputStream(file)) {
+				wb.write(out);
+			}
+			Popup.info(M.ExportedResults + " - " + file.getName());
+		} catch (Exception e) {
+			ErrorReporter.on("Export of contribution results failed", e);
+		}
+	}
+
+	private int exportImpactContributions(Sheet sheet, ImpactDescriptor impact, int startRow,
+			org.apache.poi.ss.usermodel.CellStyle boldStyle) {
+		int row = startRow;
+		
+		// Get contribution data for this impact
+		var impactCells = new ArrayList<List<Contribution>>();
+		for (var variant : variants) {
+			var map = new HashMap<RootDescriptor, Double>();
+			var result = data.result().getResult(variant);
+			for (var techFlow : result.techIndex()) {
+				map.compute(techFlow.provider(), (process, value) -> {
+					var v = result.getDirectImpactOf(impact, techFlow);
+					return value != null ? value + v : v;
+				});
+			}
+			var column = map.entrySet()
+				.stream()
+				.map(e -> new Contribution(e.getKey(), e.getValue()))
+				.collect(Collectors.toList());
+			impactCells.add(column);
+		}
+		
+		// Export contributions
+		if (showTagGrouping) {
+			// Group by tag - create a map of tag -> array of contributions per variant
+			var tagContributions = new HashMap<String, Contribution[]>();
+			for (int i = 0; i < variants.length; i++) {
+				var variantCells = impactCells.get(i);
+				var tagMap = new HashMap<String, Double>();
+				for (var cell : variantCells) {
+					if (cell.isRest)
+						continue;
+					var tag = Labels.tag(cell.process);
+					var tagSuffix = tag.isEmpty() ? "" : tag;
+					tagMap.merge(tagSuffix, cell.amount, Double::sum);
+				}
+				
+				for (var entry : tagMap.entrySet()) {
+					var tag = entry.getKey();
+					if (!tagContributions.containsKey(tag)) {
+						tagContributions.put(tag, new Contribution[variants.length]);
+					}
+					// Create a contribution for this tag and variant
+					RootDescriptor tagProcess = null;
+					for (var cell : variantCells) {
+						if (!cell.isRest && Labels.tag(cell.process).equals(tag)) {
+							tagProcess = cell.process;
+							break;
+						}
+					}
+					var tagContribution = new Contribution(
+						tagProcess != null ? tagProcess : null,
+						entry.getValue());
+					tagContributions.get(tag)[i] = tagContribution;
+				}
+			}
+			
+			// Sort tags by total amount across all variants
+			var sortedTags = new ArrayList<>(tagContributions.entrySet());
+			sortedTags.sort((a, b) -> {
+				double sumA = 0, sumB = 0;
+				for (var c : a.getValue()) {
+					if (c != null) sumA += Math.abs(c.amount);
+				}
+				for (var c : b.getValue()) {
+					if (c != null) sumB += Math.abs(c.amount);
+				}
+				return Double.compare(sumB, sumA);
+			});
+			
+			// Write tag-grouped data
+			for (var entry : sortedTags) {
+				var tag = entry.getKey();
+				var contributions = entry.getValue();
+				Excel.cell(sheet, row, 0, impact.name);
+				Excel.cell(sheet, row, 1, tag.isEmpty() ? "(Untagged)" : tag);
+				Excel.cell(sheet, row, 2, tag.isEmpty() ? "" : tag);
+				for (int i = 0; i < variants.length; i++) {
+					var cell = contributions[i];
+					if (cell != null) {
+						var value = showPercentages 
+							? calculatePercent(cell.amount, impactCells.get(i))
+							: cell.amount;
+						if (showPercentages) {
+							Excel.cell(sheet, row, i + 3, value / 100.0);
+						} else {
+							Excel.cell(sheet, row, i + 3, value);
+						}
+					}
+				}
+				row++;
+			}
+		} else {
+			// Export individual process contributions
+			// Get all unique processes across all variants
+			var allProcesses = new HashMap<RootDescriptor, Contribution[]>();
+			for (int i = 0; i < variants.length; i++) {
+				var variantCells = impactCells.get(i);
+				var selected = Contribution.select(variantCells, count, query);
+				for (var cell : selected) {
+					if (cell.isRest)
+						continue;
+					if (!allProcesses.containsKey(cell.process)) {
+						allProcesses.put(cell.process, new Contribution[variants.length]);
+					}
+					allProcesses.get(cell.process)[i] = cell;
+				}
+			}
+			
+			// Sort by total amount across all variants
+			var sortedProcesses = new ArrayList<>(allProcesses.entrySet());
+			sortedProcesses.sort((a, b) -> {
+				double sumA = 0, sumB = 0;
+				for (var c : a.getValue()) {
+					if (c != null) sumA += Math.abs(c.amount);
+				}
+				for (var c : b.getValue()) {
+					if (c != null) sumB += Math.abs(c.amount);
+				}
+				return Double.compare(sumB, sumA);
+			});
+			
+			// Write process contributions
+			for (var entry : sortedProcesses) {
+				var process = entry.getKey();
+				var contributions = entry.getValue();
+				var processName = Labels.name(process);
+				var category = Labels.category(process);
+				var tag = Labels.tag(process);
+				var displayName = category != null && !category.isEmpty()
+					? category + " | " + processName
+					: processName;
+				Excel.cell(sheet, row, 0, impact.name);
+				Excel.cell(sheet, row, 1, displayName);
+				Excel.cell(sheet, row, 2, tag.isEmpty() ? "" : tag);
+				for (int i = 0; i < variants.length; i++) {
+					var cell = contributions[i];
+					if (cell != null) {
+						var value = showPercentages
+							? calculatePercent(cell.amount, impactCells.get(i))
+							: cell.amount;
+						if (showPercentages) {
+							Excel.cell(sheet, row, i + 3, value / 100.0);
+						} else {
+							Excel.cell(sheet, row, i + 3, value);
+						}
+					}
+				}
+				row++;
+			}
+		}
+		return row;
+	}
+
+	private double calculatePercent(double amount, List<Contribution> variantCells) {
+		var total = variantCells.stream()
+			.mapToDouble(c -> Math.abs(c.amount))
+			.sum();
+		if (total == 0)
+			return 0.0;
+		return amount / total * 100.0;
 	}
 }
